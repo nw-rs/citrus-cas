@@ -1,0 +1,13 @@
+[package]
+name = "rcas"
+version = "0.1.0"
+authors = ["willemml <willem@leit.so>"]
+edition = "2018"
+license = "GPL-3.0"
+description = "CAS (Computer Algebra System) for no_std environements."
+repository = "https://github.com/willemml/rcas"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nom = { version = "6", default-features = false, features = ["bitvec", "lexical", "alloc"] }
