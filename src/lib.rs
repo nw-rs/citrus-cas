@@ -1,4 +1,4 @@
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
@@ -7,7 +7,6 @@ extern crate nom;
 
 use alloc::vec::Vec;
 use nom::number::complete::float;
-use nom::IResult;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Token {
@@ -56,5 +55,5 @@ pub fn eval_math_expr(expr: Vec<Token>) -> f32 {
 }
 
 pub fn test(input: &str) -> Result<f32, ()> {
-    Ok(eval_math_expr(math_expr(dbg!(input)).map_err(|_| ())?.1))
+    Ok(eval_math_expr(math_expr(input).map_err(|_| ())?.1))
 }
