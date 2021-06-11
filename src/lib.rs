@@ -6,7 +6,11 @@ extern crate alloc;
 extern crate nom;
 
 use alloc::vec::Vec;
-use nom::number::complete::float;
+use nom::{error::Error, number::complete::float as float_par, Err};
+
+fn float(input: &str) -> Result<(&str, f32), Err<Error<&str>>> {
+    float_par::<&str, Error<&str>>(input)
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Token {
