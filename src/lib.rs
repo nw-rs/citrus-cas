@@ -6,7 +6,6 @@ extern crate alloc;
 extern crate nom;
 
 use alloc::vec::Vec;
-use nom::multi::many0;
 use nom::number::complete::float;
 use nom::IResult;
 
@@ -29,9 +28,8 @@ named!(math_token<&str, Token>,
     )
 );
 
-named!(math_expr<&str, Vec<Token>>, many0!(math_token));
+named!(math_expr<&str, Vec<Token>>, many0!(complete!(math_token)));
 
-pub fn test(input: &str) -> IResult<&str, Token> {
-    //math_expr(dbg!(input))
-    math_token(input)
+pub fn test(input: &str) -> IResult<&str, Vec<Token>> {
+    math_expr(dbg!(input))
 }
