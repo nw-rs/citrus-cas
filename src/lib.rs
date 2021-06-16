@@ -58,6 +58,6 @@ pub fn eval_math_expr(expr: Vec<Token>) -> f32 {
     num
 }
 
-pub fn test(input: &str) -> Result<f32, ()> {
+pub fn parse_eval(input: &str) -> Result<f32, ()> {
     Ok(eval_math_expr(math_expr(input).map_err(|_| ())?.1))
 }
