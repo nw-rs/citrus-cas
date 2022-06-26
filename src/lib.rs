@@ -1,12 +1,16 @@
 #![no_std]
 
-extern crate alloc;
+extern crate arrayvec;
+extern crate micromath;
+extern crate heapless;
 
 #[macro_use]
 extern crate nom;
 
 use core::{fmt, str::FromStr};
-use alloc::{vec::Vec, collections::BTreeMap};
+use arrayvec::{ArrayVec, ArrayString};
+use micromath::F32;
+use heapless::LinearMap;
 
 use nom::{
     character::complete::anychar as char_par, 
@@ -17,10 +21,11 @@ use nom::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum Token {
-    Number(f32),
+    Number(F32),
     Op(Operation),
     Var(char),
     Paren(bool),
+    Func(ArrayString<8>),
 }
 
 impl fmt::Display for Token {
@@ -31,6 +36,7 @@ impl fmt::Display for Token {
             Token::Var(var) => write!(f, "{}", var),
             Token::Paren(true) => write!(f, "("),
             Token::Paren(false) => write!(f, ")"),
+            Token::Func(func) => write!(f, "{}", func),
         }
     }
 }
@@ -82,7 +88,7 @@ named!(math_token<&str, Token>,
         tag!("/") => { |_| Token::Op(Operation::Divide)} |
         tag!("^") => { |_| Token::Op(Operation::Power)} |
 
-        float => { |f| Token::Number(f) } |
+        float => { |f| Token::Number(F32(f)) } | //TODO: fix negative numbers
 
         tag!("(") => { |_| Token::Paren(true) } |
         tag!(")") => { |_| Token::Paren(false) } |
@@ -91,20 +97,22 @@ named!(math_token<&str, Token>,
     )
 );
 
-named!(math_expr<&str, Vec<Token>>, many0!(complete!(math_token)));
+named!(math_expr<&str, ArrayVec<Token,32>>, fold_many0!(complete!(math_token), ArrayVec::new(), |mut acc, t| {
+    acc.push(t);
+    acc
+}));
 
 /*
 the shunting-yard algorithm converts an infix
 notation expression, for example 5 + 2 * 7, into
 a postfix notation expression, for example 5 2 7 * +
 */
-fn shunting_yard(tokens: Vec<Token>) -> Vec<Token> {
-    let mut output = Vec::new();
-    let mut stack = Vec::new();
+fn shunting_yard<const E: usize>(tokens: ArrayVec<Token, E>) -> ArrayVec<Token, E> {
+    let mut output = ArrayVec::new();
+    let mut stack: ArrayVec<Token, E> = ArrayVec::new();
 
     for token in tokens {
         match token {
-            Token::Number(_) => output.push(token),
             Token::Op(op) => {
                 while let Some(&Token::Op(top)) = stack.last() {
                     if top.precedence() >= op.precedence() {
@@ -115,7 +123,6 @@ fn shunting_yard(tokens: Vec<Token>) -> Vec<Token> {
                 }
                 stack.push(token);
             }
-            Token::Var(_) => output.push(token), //TODO: implement implicit multiplication
             Token::Paren(true) => stack.push(token),
             Token::Paren(false) => { 
                 while let Some(&Token::Paren(true)) = stack.last() {
@@ -123,6 +130,7 @@ fn shunting_yard(tokens: Vec<Token>) -> Vec<Token> {
                 }
                 stack.pop().unwrap();
             }
+            _ => output.push(token),
         }
     }
 
@@ -133,30 +141,34 @@ fn shunting_yard(tokens: Vec<Token>) -> Vec<Token> {
     output
 }
 
-pub struct ValueMap {
-    pub map: BTreeMap<char, Expression>
+/*
+a ValueMap is a map of characters associated with 
+variables to the expressions that they should evaluate to.
+*/
+pub struct ValueMap<const E: usize, const N: usize> {
+    pub map: LinearMap<char, Expression<E>, N>
 }
 
-impl ValueMap {
+impl<const E: usize, const N: usize> ValueMap<E, N> {
     pub fn new() -> Self {
         ValueMap {
-            map: BTreeMap::new()
+            map: LinearMap::new()
         }
     }
 
-    pub fn insert(&mut self, var: char, expr: Expression) {
+    pub fn insert(&mut self, var: char, expr: Expression<E>) {
         self.map.insert(var, expr);
     }
 
-    pub fn get(&self, var: char) -> Option<&Expression> {
+    pub fn get(&self, var: char) -> Option<&Expression<E>> {
         self.map.get(&var)
     }
 
-    pub fn get_mut(&mut self, var: char) -> Option<&mut Expression> {
+    pub fn get_mut(&mut self, var: char) -> Option<&mut Expression<E>> {
         self.map.get_mut(&var)
     }
 
-    pub fn remove(&mut self, var: char) -> Option<Expression> {
+    pub fn remove(&mut self, var: char) -> Option<Expression<E>> {
         self.map.remove(&var)
     }
 
@@ -167,7 +179,7 @@ impl ValueMap {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Approx {
-    Num(f32),
+    Num(F32),
     Undef
 }
 
@@ -181,14 +193,14 @@ impl fmt::Display for Approx {
 }
 
 /*
-an expression is a sequence of tokens which comprise
+an Expression is a sequence of tokens which comprise
 a postfix notation expression
 */
-pub struct Expression { //TODO: implement postfix to infix fmt conversion
-    pub tokens: Vec<Token>, //replace with something not alloc?
+pub struct Expression<const E: usize> { //TODO: implement postfix to infix fmt conversion
+    pub tokens: ArrayVec<Token, E>,
 }
 
-impl FromStr for Expression {
+impl<const E: usize> FromStr for Expression<E> {
     type Err = (); //TODO: error type
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -198,24 +210,25 @@ impl FromStr for Expression {
     }
 }
 
-impl Expression {
-    pub fn new(tokens: Vec<Token>) -> Self {
+impl<const E: usize> Expression<E> {
+    pub fn new(tokens: ArrayVec<Token, E>) -> Self {
         Expression { tokens }
     }
 
-    pub fn evaluate(&self) -> Expression {
-        let mut stack: Vec<Token> = Vec::new();
+    pub fn evaluate(&self) -> Expression<E> {
+        let mut stack: ArrayVec<Token, E> = ArrayVec::new();
+        
         for token in self.tokens.iter() {
             match token {
                 Token::Number(f) => stack.push(Token::Number(*f)),
                 Token::Op(op) => {
-                    let rhs: f32 = match stack.pop().unwrap() { //TODO: convert into a confined array to support non-binary operations
+                    let rhs: F32 = match stack.pop().unwrap() { //TODO: convert into a confined array to support non-binary operations
                         Token::Number(n) => n,
-                        _ => return Expression::new(Vec::new()),
+                        _ => return Expression::new(ArrayVec::new()),
                     };
-                    let lhs: f32 = match stack.pop().unwrap() {
+                    let lhs: F32 = match stack.pop().unwrap() {
                         Token::Number(n) => n,
-                        _ => return Expression::new(Vec::new()),
+                        _ => return Expression::new(ArrayVec::new()),
                     };
                     
                     let result = match op {
@@ -223,18 +236,19 @@ impl Expression {
                         Operation::Subtract => lhs - rhs,
                         Operation::Multiply => lhs * rhs,
                         Operation::Divide => lhs / rhs,
-                        Operation::Power => unimplemented!(), //TODO: add micromath or libm for f32 approximation
+                        Operation::Power => lhs.powf(rhs),
                     };
+                    
                     stack.push(Token::Number(result));
                 }
-                Token::Var(_) => unimplemented!(), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
-                Token::Paren(_) => unimplemented!(),
+                _ => unimplemented!(), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
             }
         }
+        
         Expression::new(stack)
     }
 
-    pub fn approximate(&self, vars: &ValueMap) -> Approx {
+    pub fn approximate<const N: usize>(&self, vars: &ValueMap<E, N>) -> Approx {
         let mut replace = self.tokens.clone();
 
         for token in replace.iter_mut() {
@@ -254,14 +268,18 @@ impl Expression {
             }
         }
 
-        match (Expression::new(replace)).evaluate().tokens.pop().unwrap() {
+        let mut result = Expression::new(replace).evaluate().tokens;
+        if result.len() != 1 { //this should not occur, because variables and functions should be replaced with numbers, or return undefined before this
+            return Approx::Undef;
+        }
+        match result.pop().unwrap() {
             Token::Number(n) => Approx::Num(n),
             _ => Approx::Undef,
         }
     }
 }
 
-pub fn parse_approx(input: &str, map: &ValueMap) -> Approx {
+pub fn parse_approx<const E: usize, const N: usize>(input: &str, map: &ValueMap<E, N>) -> Approx {
     match Expression::from_str(input.trim()) {
         Ok(it) => it,
         Err(_err) => unimplemented!(),
