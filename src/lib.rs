@@ -1,22 +1,19 @@
 #![no_std]
 
 extern crate arrayvec;
-extern crate micromath;
 extern crate heapless;
+extern crate micromath;
 
-#[macro_use]
-extern crate nom;
-
+use arrayvec::{ArrayString, ArrayVec};
 use core::{fmt, str::FromStr};
-use arrayvec::{ArrayVec, ArrayString};
-use micromath::F32;
 use heapless::LinearMap;
+use micromath::F32;
 
 use nom::{
-    character::complete::anychar as char_par, 
+    character::complete::{anychar, one_of},
+    error::Error,
     number::complete::float as float_par,
-    error::Error, 
-    Err,
+    IResult,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -72,35 +69,60 @@ impl Operation {
     }
 }
 
-fn float(input: &str) -> Result<(&str, f32), Err<Error<&str>>> {
-    float_par::<&str, Error<&str>>(input)
+fn operation(i: &str) -> IResult<&str, Token, Error<&str>> {
+    let (i, t) = one_of("+-*/^")(i)?;
+
+    Ok((
+        i,
+        Token::Op(match t {
+            '+' => Operation::Add,
+            '-' => Operation::Subtract,
+            '/' => Operation::Divide,
+            '*' => Operation::Multiply,
+            '^' => Operation::Power,
+            _ => unreachable!(),
+        }),
+    ))
 }
 
-fn char(input: &str) -> Result<(&str, char), Err<Error<&str>>> {
-    char_par::<&str, Error<&str>>(input)
+fn parenthesis(i: &str) -> IResult<&str, Token, Error<&str>> {
+    let (i, t) = one_of("()")(i)?;
+
+    Ok((
+        i,
+        match t {
+            '(' => Token::Paren(true),
+            ')' => Token::Paren(false),
+            _ => unreachable!(),
+        },
+    ))
 }
 
-named!(math_token<&str, Token>,
-    alt!(
-        tag!("*") => { |_| Token::Op(Operation::Multiply) } |
-        tag!("+") => { |_| Token::Op(Operation::Add)} |
-        tag!("-") => { |_| Token::Op(Operation::Subtract)} |
-        tag!("/") => { |_| Token::Op(Operation::Divide)} |
-        tag!("^") => { |_| Token::Op(Operation::Power)} |
+fn variable(i: &str) -> IResult<&str, Token, Error<&str>> {
+    let (i, c) = anychar(i)?;
 
-        float => { |f| Token::Number(F32(f)) } | //TODO: fix negative numbers
+    Ok((i, Token::Var(c)))
+}
 
-        tag!("(") => { |_| Token::Paren(true) } |
-        tag!(")") => { |_| Token::Paren(false) } |
+fn float(i: &str) -> IResult<&str, Token, Error<&str>> {
+    let (i, f) = float_par(i)?;
+    Ok((i, Token::Number(F32(f))))
+}
 
-        char => { |c| Token::Var(c) }
-    )
-);
+fn math_token(i: &str) -> IResult<&str, Token, Error<&str>> {
+    nom::branch::alt((operation, float, parenthesis, variable))(i)
+}
 
-named!(math_expr<&str, ArrayVec<Token,32>>, fold_many0!(complete!(math_token), ArrayVec::new(), |mut acc, t| {
-    acc.push(t);
-    acc
-}));
+fn math_expr<const E: usize>(i: &str) -> IResult<&str, ArrayVec<Token, E>, Error<&str>> {
+    nom::multi::fold_many0(
+        nom::combinator::complete(math_token),
+        ArrayVec::new(),
+        |mut acc, t| {
+            acc.push(t);
+            acc
+        },
+    )(i)
+}
 
 /*
 the shunting-yard algorithm converts an infix
@@ -124,7 +146,7 @@ fn shunting_yard<const E: usize>(tokens: ArrayVec<Token, E>) -> ArrayVec<Token, 
                 stack.push(token);
             }
             Token::Paren(true) => stack.push(token),
-            Token::Paren(false) => { 
+            Token::Paren(false) => {
                 while let Some(&Token::Paren(true)) = stack.last() {
                     output.push(stack.pop().unwrap()); //I literally cannot remeber if this is correct
                 }
@@ -142,22 +164,22 @@ fn shunting_yard<const E: usize>(tokens: ArrayVec<Token, E>) -> ArrayVec<Token, 
 }
 
 /*
-a ValueMap is a map of characters associated with 
+a ValueMap is a map of characters associated with
 variables to the expressions that they should evaluate to.
 */
 pub struct ValueMap<const E: usize, const N: usize> {
-    pub map: LinearMap<char, Expression<E>, N>
+    pub map: LinearMap<char, Expression<E>, N>,
 }
 
 impl<const E: usize, const N: usize> ValueMap<E, N> {
     pub fn new() -> Self {
         ValueMap {
-            map: LinearMap::new()
+            map: LinearMap::new(),
         }
     }
 
     pub fn insert(&mut self, var: char, expr: Expression<E>) {
-        self.map.insert(var, expr);
+        let _ = self.map.insert(var, expr);
     }
 
     pub fn get(&self, var: char) -> Option<&Expression<E>> {
@@ -180,7 +202,7 @@ impl<const E: usize, const N: usize> ValueMap<E, N> {
 #[derive(Debug, Clone, Copy)]
 pub enum Approx {
     Num(F32),
-    Undef
+    Undef,
 }
 
 impl fmt::Display for Approx {
@@ -196,7 +218,8 @@ impl fmt::Display for Approx {
 an Expression is a sequence of tokens which comprise
 a postfix notation expression
 */
-pub struct Expression<const E: usize> { //TODO: implement postfix to infix fmt conversion
+pub struct Expression<const E: usize> {
+    //TODO: implement postfix to infix fmt conversion
     pub tokens: ArrayVec<Token, E>,
 }
 
@@ -217,12 +240,13 @@ impl<const E: usize> Expression<E> {
 
     pub fn evaluate(&self) -> Expression<E> {
         let mut stack: ArrayVec<Token, E> = ArrayVec::new();
-        
+
         for token in self.tokens.iter() {
             match token {
                 Token::Number(f) => stack.push(Token::Number(*f)),
                 Token::Op(op) => {
-                    let rhs: F32 = match stack.pop().unwrap() { //TODO: convert into a confined array to support non-binary operations
+                    let rhs: F32 = match stack.pop().unwrap() {
+                        //TODO: convert into a confined array to support non-binary operations
                         Token::Number(n) => n,
                         _ => return Expression::new(ArrayVec::new()),
                     };
@@ -230,7 +254,7 @@ impl<const E: usize> Expression<E> {
                         Token::Number(n) => n,
                         _ => return Expression::new(ArrayVec::new()),
                     };
-                    
+
                     let result = match op {
                         Operation::Add => lhs + rhs,
                         Operation::Subtract => lhs - rhs,
@@ -238,13 +262,13 @@ impl<const E: usize> Expression<E> {
                         Operation::Divide => lhs / rhs,
                         Operation::Power => lhs.powf(rhs),
                     };
-                    
+
                     stack.push(Token::Number(result));
                 }
                 _ => unimplemented!(), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
             }
         }
-        
+
         Expression::new(stack)
     }
 
@@ -254,13 +278,13 @@ impl<const E: usize> Expression<E> {
         for token in replace.iter_mut() {
             match token {
                 Token::Var(var) => {
-                    if let Some(expr) = vars.get(*var) { //this feels like it's wrong somehow
+                    if let Some(expr) = vars.get(*var) {
+                        //this feels like it's wrong somehow
                         *token = match expr.approximate(vars) {
                             Approx::Num(n) => Token::Number(n),
                             Approx::Undef => return Approx::Undef,
                         };
-                    }
-                    else {
+                    } else {
                         return Approx::Undef;
                     }
                 }
@@ -269,7 +293,8 @@ impl<const E: usize> Expression<E> {
         }
 
         let mut result = Expression::new(replace).evaluate().tokens;
-        if result.len() != 1 { //this should not occur, because variables and functions should be replaced with numbers, or return undefined before this
+        if result.len() != 1 {
+            //this should not occur, because variables and functions should be replaced with numbers, or return undefined before this
             return Approx::Undef;
         }
         match result.pop().unwrap() {
@@ -283,5 +308,6 @@ pub fn parse_approx<const E: usize, const N: usize>(input: &str, map: &ValueMap<
     match Expression::from_str(input.trim()) {
         Ok(it) => it,
         Err(_err) => unimplemented!(),
-    }.approximate(map)
+    }
+    .approximate(map)
 }

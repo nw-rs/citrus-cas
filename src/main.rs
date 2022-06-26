@@ -1,8 +1,8 @@
 use std::{io, str::FromStr};
 
 fn main() {
-    let mut map = rcas::ValueMap::new();
-    map.insert('x', rcas::Expression::from_str("30+20").unwrap()); //simple variable test case
+    let mut map = rcas::ValueMap::<1000, 52>::new();
+    map.insert('x', rcas::Expression::<1000>::from_str("30+20").unwrap()); //simple variable test case
 
     loop {
         println!("Enter a math expression: ");
