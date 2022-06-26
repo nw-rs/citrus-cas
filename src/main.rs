@@ -11,6 +11,6 @@ fn main() {
 
         io::stdin().read_line(&mut input).expect("Failed to read line");
 
-        println!("{}", rcas::parse_approx(&input, &map));
+        println!("{}", rcas::parse_approximation(&input, &map));
     }
 }
