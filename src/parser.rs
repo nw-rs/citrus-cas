@@ -1,6 +1,7 @@
 use core::str::FromStr;
 
-use arrayvec::ArrayVec;
+use heapless::LinearMap;
+use heapless::Vec;
 use micromath::F32;
 use nom::{
     branch::alt,
@@ -12,7 +13,10 @@ use nom::{
     IResult,
 };
 
-use crate::{token::{Token, Operation}, expression::{Expression, Approx}, ValueMap};
+use crate::{
+    expression::{Approx, Expression},
+    token::{Operation, Token},
+};
 
 fn operation(i: &str) -> IResult<&str, Token, Error<&str>> {
     let (i, t) = one_of("+-*/^")(i)?;
@@ -58,14 +62,17 @@ fn math_token(i: &str) -> IResult<&str, Token, Error<&str>> {
     alt((operation, float, parenthesis, variable))(i)
 }
 
-pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, ArrayVec<Token, E>, Error<&str>> {
-    fold_many0(complete(math_token), ArrayVec::new(), |mut acc, t| {
-        acc.push(t);
+pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, Vec<Token, E>, Error<&str>> {
+    fold_many0(complete(math_token), Vec::new(), |mut acc, t| {
+        acc.push(t).expect("Not enough memory."); //TODO: make this return an error instead of panicking
         acc
     })(i)
 }
 
-pub fn approx<const E: usize, const N: usize>(input: &str, map: &ValueMap<E, N>) -> Approx {
+pub fn approx<const E: usize, const N: usize>(
+    input: &str,
+    map: &LinearMap<char, Expression<E>, N>,
+) -> Result<Approx, crate::Error> {
     match Expression::from_str(input.trim()) {
         Ok(it) => it,
         Err(_err) => unimplemented!(),

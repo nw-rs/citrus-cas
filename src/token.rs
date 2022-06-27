@@ -1,15 +1,15 @@
 use core::{fmt::{Display, Formatter, Result}, cmp::Ordering};
 
-use arrayvec::ArrayString;
+use heapless::String;
 use micromath::F32;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Token {
     Number(F32),
     Op(Operation),
     Var(char),
     Paren(bool),
-    Func(ArrayString<8>),
+    Func(String<8>),
 }
 
 impl Display for Token {
