@@ -2,7 +2,7 @@ use core::str::FromStr;
 
 use heapless::LinearMap;
 use heapless::Vec;
-use micromath::F32;
+
 use nom::{
     branch::alt,
     character::complete::{anychar, one_of},
@@ -55,7 +55,7 @@ fn variable(i: &str) -> IResult<&str, Token, Error<&str>> {
 
 fn float(i: &str) -> IResult<&str, Token, Error<&str>> {
     let (i, f) = float_par(i)?;
-    Ok((i, Token::Number(F32(f))))
+    Ok((i, Token::Number(f)))
 }
 
 fn math_token(i: &str) -> IResult<&str, Token, Error<&str>> {

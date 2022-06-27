@@ -5,7 +5,6 @@ use core::{
 
 use heapless::LinearMap;
 use heapless::Vec;
-use micromath::F32;
 
 use crate::{
     parser::math_expr,
@@ -92,12 +91,12 @@ impl<const E: usize> Expression<E> {
                         .map_err(|_| Error::NotEnoughMemory)?;
                 }
                 Token::Op(op) => {
-                    let rhs: F32 = match stack.pop().unwrap() {
+                    let rhs: f32 = match stack.pop().unwrap() {
                         //TODO: convert into a confined array to support non-binary operations
                         Token::Number(n) => n,
                         _ => return Ok(Expression::new(Vec::new())),
                     };
-                    let lhs: F32 = match stack.pop().unwrap() {
+                    let lhs: f32 = match stack.pop().unwrap() {
                         Token::Number(n) => n,
                         _ => return Ok(Expression::new(Vec::new())),
                     };
@@ -107,7 +106,7 @@ impl<const E: usize> Expression<E> {
                         Operation::Subtract => lhs - rhs,
                         Operation::Multiply => lhs * rhs,
                         Operation::Divide => lhs / rhs,
-                        Operation::Power => lhs.powf(rhs),
+                        Operation::Power => libm::powf(lhs, rhs),
                     };
 
                     stack
@@ -164,7 +163,7 @@ impl<const E: usize> Expression<E> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Approx {
-    Num(F32),
+    Num(f32),
     Undef,
 }
 
