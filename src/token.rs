@@ -11,6 +11,21 @@ pub enum Token {
     Func(String<8>),
 }
 
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Token::Number(n1), Token::Number(n2)) => n1 == n2,
+            (Token::Op(op1), Token::Op(op2)) => op1 == op2,
+            (Token::Var(v1), Token::Var(v2)) => v1 == v2,
+            (Token::Paren(p1), Token::Paren(p2)) => p1 == p2,
+            (Token::Func(f1), Token::Func(f2)) => f1 == f2,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Token {}
+
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
