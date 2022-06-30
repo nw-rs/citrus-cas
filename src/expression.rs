@@ -1,5 +1,5 @@
 use core::{
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, self},
     str::FromStr,
 };
 
@@ -47,7 +47,7 @@ fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>,
         match token {
             Token::Op(op) => {
                 while let Some(&Token::Op(top)) = stack.last() {
-                    if top.precedence() >= op.precedence() {
+                    if top.precedence() > op.precedence() || (top.precedence() == op.precedence() && !top.right_associative()) {
                         output
                             .push(stack.pop().unwrap())
                             .map_err(|_| Error::NotEnoughMemory)?;
@@ -106,6 +106,16 @@ impl<const E: usize> FromStr for Expression<E> {
     }
 }
 
+//TODO: write as infix instead of postfix
+impl<const E: usize> fmt::Display for Expression<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.tokens.iter().try_for_each(|token| {
+            write!(f, "{}", token)
+        })?;
+        Ok(())
+    }
+}
+
 impl<const E: usize> Expression<E> {
     pub fn new(tokens: Vec<Token, E>) -> Self {
         Expression { tokens }
@@ -144,7 +154,7 @@ impl<const E: usize> Expression<E> {
                         .push(Token::Number(result))
                         .map_err(|_| Error::NotEnoughMemory)?;
                 }
-                _ => unimplemented!(), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
+                _ => return Err(Error::InvalidSyntax), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
             }
         }
 

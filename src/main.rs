@@ -27,12 +27,19 @@ fn main() {
             .read_line(&mut input)
             .expect("Failed to read line");
 
-        let result = rcas::parse_approximation(&input, &map_collection);
+        let eval_result = rcas::parse_evaluation::<500>(&input);
+        let approx_result = rcas::parse_approximation(&input, &map);
 
-        if result.is_ok() {
-            println!("{}", result.unwrap());
+        if eval_result.is_ok() {
+            println!("eval: {}", eval_result.unwrap().to_string());
         } else {
-            println!("{:?}", result.unwrap_err());
+            println!("eval: {:?}", eval_result.unwrap_err());
+        }
+
+        if approx_result.is_ok() {
+            println!("approx: {}", approx_result.unwrap().to_string());
+        } else {
+            println!("approx: {:?}", approx_result.unwrap_err());
         }
     }
 }

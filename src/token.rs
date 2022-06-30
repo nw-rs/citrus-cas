@@ -80,6 +80,13 @@ impl Operation {
             Operation::Power => 3,
         }
     }
+
+    pub fn right_associative(&self) -> bool {
+        match self {
+            Operation::Power => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Operation {
