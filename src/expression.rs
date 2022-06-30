@@ -1,9 +1,9 @@
 use core::{
-    fmt::{Display, Formatter, self, Write},
+    fmt::{Display, Formatter, self},
     str::FromStr,
 };
 
-use heapless::{LinearMap, String};
+use heapless::LinearMap;
 use heapless::Vec;
 
 use crate::{
@@ -82,11 +82,10 @@ impl<const E: usize> FromStr for Expression<E> {
 //TODO: write as infix instead of postfix
 impl<const E: usize> fmt::Display for Expression<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.tokens.iter().fold(String::<64>::new(), |acc, token| { //TODO:!!!I'm not sure how to assign the maximum size
-            let mut wr = String::new();
-            write!(wr, "{}", format_args!("{}{}", acc, token)).unwrap();
-            wr
-        }))
+        self.tokens.iter().try_for_each(|token| {
+            write!(f, "{}", token)
+        })?;
+        Ok(())
     }
 }
 
