@@ -23,7 +23,7 @@ fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>,
         match token {
             Token::Op(op) => {
                 while let Some(&Token::Op(top)) = stack.last() {
-                    if top.precedence() >= op.precedence() {
+                    if top.precedence() > op.precedence() || (top.precedence() == op.precedence() && !top.right_associative()) {
                         output
                             .push(stack.pop().unwrap())
                             .map_err(|_| Error::NotEnoughMemory)?;
