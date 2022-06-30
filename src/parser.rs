@@ -1,9 +1,6 @@
 use core::str::FromStr;
 
-use heapless::{
-    LinearMap, 
-    Vec,
-};
+use heapless::Vec;
 
 use nom::{
     branch::alt,
@@ -75,7 +72,7 @@ fn math_token(i: &str) -> IResult<&str, Token, Error<&str>> {
 }
 
 pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, Vec<Token, E>, Error<&str>> {
-    fold_many0(complete(math_token), Vec::new(), |mut acc, t| {
+    fold_many0(complete(math_token), Vec::new, |mut acc, t| {
         acc.push(t).expect("Not enough memory."); //TODO: make this return an error instead of panicking
         acc
     })(i)
