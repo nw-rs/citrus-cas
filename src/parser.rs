@@ -47,6 +47,15 @@ fn parenthesis(i: &str) -> IResult<&str, Token, Error<&str>> {
     ))
 }
 
+fn divider(i: &str) -> IResult<&str, Token, Error<&str>> {
+    let (i, _) = one_of(",")(i)?;
+
+    Ok((
+        i,
+        Token::Divider,
+    ))
+}
+
 fn variable(i: &str) -> IResult<&str, Token, Error<&str>> {
     let (i, c) = anychar(i)?;
 
@@ -59,7 +68,7 @@ fn float(i: &str) -> IResult<&str, Token, Error<&str>> {
 }
 
 fn math_token(i: &str) -> IResult<&str, Token, Error<&str>> {
-    alt((operation, float, parenthesis, variable))(i)
+    alt((operation, float, parenthesis, divider, variable))(i)
 }
 
 pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, Vec<Token, E>, Error<&str>> {

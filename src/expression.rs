@@ -167,7 +167,18 @@ impl<const E: usize> Expression<E> {
             }
         }
 
-        let mut result = exprs
+        let mut ensure_implimentation: Expression<E> = Expression::new(Vec::new());
+        for token in exprs.tokens.iter() {
+            match token {
+                &Token::Terminator => {},
+                _ => {
+                    ensure_implimentation.tokens.push(token.clone())
+                        .map_err(|_| Error::NotEnoughMemory)?;
+                }
+            }
+        }
+
+        let mut result = ensure_implimentation
             .evaluate()?
             .tokens;
 
