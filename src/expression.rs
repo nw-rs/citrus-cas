@@ -1,5 +1,5 @@
 use core::{
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, self},
     str::FromStr,
 };
 
@@ -79,6 +79,16 @@ impl<const E: usize> FromStr for Expression<E> {
     }
 }
 
+//TODO: write as infix instead of postfix
+impl<const E: usize> fmt::Display for Expression<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.tokens.iter().try_for_each(|token| {
+            write!(f, "{}", token)
+        })?;
+        Ok(())
+    }
+}
+
 impl<const E: usize> Expression<E> {
     pub fn new(tokens: Vec<Token, E>) -> Self {
         Expression { tokens }
@@ -117,7 +127,7 @@ impl<const E: usize> Expression<E> {
                         .push(Token::Number(result))
                         .map_err(|_| Error::NotEnoughMemory)?;
                 }
-                _ => unimplemented!(), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
+                _ => return Err(Error::InvalidSyntax), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
             }
         }
 
