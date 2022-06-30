@@ -12,7 +12,7 @@ use crate::{
     Error,
 };
 
-/// the shunting-yard algorithm converts an infix
+/// the shunting yard algorithm converts an infix
 /// notation expression, for example 5 + 2 * 7, into
 /// a postfix notation expression, for example 5 2 7 * +
 fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>, Error> {
@@ -37,12 +37,16 @@ fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>,
                 stack.push(token).map_err(|_| Error::NotEnoughMemory)?;
             }
             Token::Paren(false) => {
-                while let Some(&Token::Paren(true)) = stack.last() {
-                    output
-                        .push(stack.pop().unwrap())
-                        .map_err(|_| Error::NotEnoughMemory)?; //I literally cannot remeber if this is correct
+                while let Some(stack_token) = stack.last() {                 
+                    if stack_token == &Token::Paren(true) {
+                        stack.pop().unwrap();
+                        break;
+                    } else {
+                        output
+                            .push(stack.pop().unwrap())
+                            .map_err(|_| Error::NotEnoughMemory)?;
+                    }
                 }
-                stack.pop().unwrap();
             }
             _ => {
                 output.push(token).map_err(|_| Error::NotEnoughMemory)?;
