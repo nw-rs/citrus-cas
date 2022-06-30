@@ -1,6 +1,5 @@
 use core::str::FromStr;
 
-use heapless::LinearMap;
 use heapless::Vec;
 
 use nom::{
@@ -16,6 +15,7 @@ use nom::{
 use crate::{
     expression::{Approx, Expression},
     token::{Operation, Token},
+    expression_map::ExpressionMap,
 };
 
 fn operation(i: &str) -> IResult<&str, Token, Error<&str>> {
@@ -71,11 +71,11 @@ pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, Vec<Token, E>, Error<
 
 pub fn approx<const E: usize, const N: usize>(
     input: &str,
-    map: &LinearMap<char, Expression<E>, N>,
+    maps: &Vec<&dyn ExpressionMap<E>, N>,
 ) -> Result<Approx, crate::Error> {
     match Expression::from_str(input.trim()) {
         Ok(it) => it,
         Err(_err) => unimplemented!(),
     }
-    .approximate(map)
+    .approximate(maps)
 }

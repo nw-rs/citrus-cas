@@ -3,14 +3,38 @@ use core::{
     str::FromStr,
 };
 
-use heapless::LinearMap;
-use heapless::Vec;
+use heapless::{Vec, String};
 
 use crate::{
     parser::math_expr,
     token::{Operation, Token},
     Error,
+    expression_map::ExpressionMap,
 };
+
+fn function_constructor<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>, Error> {
+    let mut output = Vec::new();
+
+    let mut function_staging = String::<8>::new();
+    for token in tokens {
+        match token {
+            Token::Var(var) => function_staging.push(var).map_err(|_| Error::NotEnoughMemory)?,
+            _ => {
+                match function_staging.len() {
+                    0 => {}
+                    1 => output.push(Token::Var(function_staging.pop().unwrap())).unwrap(),
+                    _ => {
+                        output.push(Token::Func(function_staging.clone()).into()).unwrap();
+                        function_staging.clear();
+                    }
+                }
+                output.push(token).map_err(|_| Error::NotEnoughMemory)?;
+            }
+        }
+    }
+
+    Ok(output)
+}
 
 /// the shunting yard algorithm converts an infix
 /// notation expression, for example 5 + 2 * 7, into
@@ -47,6 +71,8 @@ fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>,
                             .map_err(|_| Error::NotEnoughMemory)?;
                     }
                 }
+                //TODO: this is incorrect, because it doesn't check whether or not it's in a function
+                stack.push(Token::Terminator).map_err(|_| Error::NotEnoughMemory)?;
             }
             _ => {
                 output.push(token).map_err(|_| Error::NotEnoughMemory)?;
@@ -63,7 +89,7 @@ fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>,
 
 /// A sequence of tokens which make up
 /// an expression in postfix notation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expression<const E: usize> {
     //TODO: implement postfix to infix fmt conversion
     pub tokens: Vec<Token, E>,
@@ -74,7 +100,8 @@ impl<const E: usize> FromStr for Expression<E> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let infix = math_expr(s).unwrap().1;
-        let tokens = shunting_yard(infix)?;
+        let function_added = function_constructor(infix)?;
+        let tokens = shunting_yard(function_added)?;
         Ok(Expression { tokens })
     }
 }
@@ -95,8 +122,8 @@ impl<const E: usize> Expression<E> {
                         .map_err(|_| Error::NotEnoughMemory)?;
                 }
                 Token::Op(op) => {
+                    //TODO: convert into a confined array to support non-binary operations
                     let rhs: f32 = match stack.pop().unwrap() {
-                        //TODO: convert into a confined array to support non-binary operations
                         Token::Number(n) => n,
                         _ => return Ok(Expression::new(Vec::new())),
                     };
@@ -126,31 +153,21 @@ impl<const E: usize> Expression<E> {
 
     pub fn approximate<const N: usize>(
         &self,
-        vars: &LinearMap<char, Expression<E>, N>,
+        maps: &Vec<&dyn ExpressionMap<E>, N>, //forgive me father for I have sinned
     ) -> Result<Approx, Error> {
-        let tokens = self
-            .tokens
-            .iter()
-            .map(|token| {
-                match token {
-                    Token::Var(var) => {
-                        if let Some(expr) = vars.get(&var) {
-                            //this feels like it's wrong somehow
-                            match expr.approximate(vars) {
-                                Ok(Approx::Num(n)) => Ok(Some(Token::Number(n))),
-                                Ok(Approx::Undef) => Ok(None),
-                                Err(err) => Err(err),
-                            }
-                        } else {
-                            return Ok(None);
-                        }
-                    }
-                    _ => Ok(Some(token.clone())),
-                }
-            })
-            .filter_map(Result::transpose);
+        let mut exprs = Expression::new(self.tokens.clone());
 
-        let mut result = Expression::<E>::new(tokens.collect::<Result<Vec<Token, E>, Error>>()?)
+        //this checks whether the maps need to continue operating on the expression
+        while maps.iter().fold(false, |t, map| {
+            t || map.stack_contains(&exprs)
+        }) {
+            //every ExpressionMap is applied to the expression
+            for map in maps.iter() {
+                exprs = map.approximate(&exprs);
+            }
+        }
+
+        let mut result = exprs
             .evaluate()?
             .tokens;
 

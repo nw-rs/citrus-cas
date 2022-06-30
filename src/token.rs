@@ -9,6 +9,8 @@ pub enum Token {
     Var(char),
     Paren(bool),
     Func(String<8>),
+    Divider,
+    Terminator,
 }
 
 impl PartialEq for Token {
@@ -35,6 +37,8 @@ impl Display for Token {
             Token::Paren(true) => write!(f, "("),
             Token::Paren(false) => write!(f, ")"),
             Token::Func(func) => write!(f, "{}", func),
+            Token::Divider => write!(f, ","),
+            _ => write!(f, ""),
         }
     }
 }
