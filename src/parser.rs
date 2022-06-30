@@ -18,6 +18,7 @@ use nom::{
 use crate::{
     expression::{Approx, Expression},
     token::{Operation, Token},
+    expression_map::ExpressionMap,
 };
 
 fn operation(i: &str) -> IResult<&str, Token, Error<&str>> {
@@ -49,6 +50,15 @@ fn parenthesis(i: &str) -> IResult<&str, Token, Error<&str>> {
     ))
 }
 
+fn divider(i: &str) -> IResult<&str, Token, Error<&str>> {
+    let (i, _) = one_of(",")(i)?;
+
+    Ok((
+        i,
+        Token::Divider,
+    ))
+}
+
 fn variable(i: &str) -> IResult<&str, Token, Error<&str>> {
     let (i, c) = anychar(i)?;
 
@@ -61,7 +71,7 @@ fn float(i: &str) -> IResult<&str, Token, Error<&str>> {
 }
 
 fn math_token(i: &str) -> IResult<&str, Token, Error<&str>> {
-    alt((operation, float, parenthesis, variable))(i)
+    alt((operation, float, parenthesis, divider, variable))(i)
 }
 
 pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, Vec<Token, E>, Error<&str>> {
@@ -73,13 +83,13 @@ pub fn math_expr<const E: usize>(i: &str) -> IResult<&str, Vec<Token, E>, Error<
 
 pub fn approx<const E: usize, const N: usize>(
     input: &str,
-    map: &LinearMap<char, Expression<E>, N>,
+    maps: &Vec<&dyn ExpressionMap<E>, N>,
 ) -> Result<Approx, crate::Error> {
     match Expression::from_str(input.trim()) {
         Ok(it) => it,
         Err(_err) => unimplemented!(),
     }
-    .approximate(map)
+    .approximate(maps)
 }
 
 pub fn eval<const E: usize>(input: &str) -> Result<Expression<E>, crate::Error> {
