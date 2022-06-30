@@ -1,7 +1,9 @@
 use core::str::FromStr;
 
-use heapless::LinearMap;
-use heapless::Vec;
+use heapless::{
+    LinearMap, 
+    Vec,
+};
 
 use nom::{
     branch::alt,
@@ -78,4 +80,12 @@ pub fn approx<const E: usize, const N: usize>(
         Err(_err) => unimplemented!(),
     }
     .approximate(map)
+}
+
+pub fn eval<const E: usize>(input: &str) -> Result<Expression<E>, crate::Error> {
+    match Expression::from_str(input.trim()) {
+        Ok(it) => it,
+        Err(_err) => unimplemented!(),
+    }
+    .evaluate()
 }

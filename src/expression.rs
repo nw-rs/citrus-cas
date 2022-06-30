@@ -1,9 +1,9 @@
 use core::{
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, self, Write},
     str::FromStr,
 };
 
-use heapless::LinearMap;
+use heapless::{LinearMap, String};
 use heapless::Vec;
 
 use crate::{
@@ -79,6 +79,17 @@ impl<const E: usize> FromStr for Expression<E> {
     }
 }
 
+//TODO: write as infix instead of postfix
+impl<const E: usize> fmt::Display for Expression<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.tokens.iter().fold(String::<64>::new(), |acc, token| { //TODO:!!!I'm not sure how to assign the maximum size
+            let mut wr = String::new();
+            write!(wr, "{}", format_args!("{}{}", acc, token)).unwrap();
+            wr
+        }))
+    }
+}
+
 impl<const E: usize> Expression<E> {
     pub fn new(tokens: Vec<Token, E>) -> Self {
         Expression { tokens }
@@ -117,7 +128,7 @@ impl<const E: usize> Expression<E> {
                         .push(Token::Number(result))
                         .map_err(|_| Error::NotEnoughMemory)?;
                 }
-                _ => unimplemented!(), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
+                _ => return Err(Error::InvalidSyntax), //TODO: create value enum and implement value precedence to sort and combine by num, then var, then func
             }
         }
 
