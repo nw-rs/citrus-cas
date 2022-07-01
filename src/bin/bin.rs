@@ -28,7 +28,7 @@ fn main() {
             .expect("Failed to read line");
 
         let eval_result = rcas::parse_evaluation::<500>(&input);
-        let approx_result = rcas::parse_approximation(&input, &map);
+        let approx_result = rcas::parse_approximation(&input, &map_collection);
 
         if eval_result.is_ok() {
             println!("eval: {}", eval_result.unwrap().to_string());
