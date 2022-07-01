@@ -111,7 +111,7 @@ impl<const E: usize, const L: usize, const V: usize> ExpressionMap<E> for UserFu
                 continue;
             }
             
-            skip = 1; //skip the terminator
+            skip = 0; //skip the terminator
             match token {
                 Token::Func(func) => {
                     let mut arguments: Vec<Vec::<Token, V>, V> = Vec::new();
