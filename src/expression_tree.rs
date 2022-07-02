@@ -122,11 +122,15 @@ impl<const L: usize, const C: usize> ExpressionTree<L, C> {
         let children2 = node2.unwrap().get_children().clone();
         
         node1.unwrap().get_children().iter().for_each(|child| {
-            child.unwrap().reassign_parent(node2);
+            if let Some(c) = child {
+                c.reassign_parent(node2);
+            }
         });
 
         for child in children2 {
-            child.unwrap().reassign_parent(node1);
+            if let Some(c) = child {
+                c.reassign_parent(node1);
+            }
         }
 
         Ok(())
