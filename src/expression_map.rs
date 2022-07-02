@@ -114,6 +114,10 @@ impl<const E: usize, const L: usize, const V: usize> ExpressionMap<E> for UserFu
             skip = 0; //skip the terminator
             match token {
                 Token::Func(func) => {
+                    if self.function_map.get(&func).is_none() {
+                        continue;
+                    }
+
                     let mut arguments: Vec<Vec::<Token, V>, V> = Vec::new();
                     let mut argument_approx: Vec<Approx, E> = Vec::new();
                     let mut argument_count = 0;

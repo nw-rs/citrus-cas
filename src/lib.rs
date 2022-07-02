@@ -4,6 +4,7 @@ mod expression;
 mod parser;
 mod token;
 mod expression_map;
+mod expression_tree;
 
 pub use expression::{Approx, Expression};
 pub use expression_map::{ExpressionMap, VariableMap,UserFunctionMap,};
@@ -15,4 +16,5 @@ pub use parser::eval as parse_evaluation;
 pub enum Error {
     NotEnoughMemory,
     InvalidSyntax,
+    UndefinedSymbol,
 }

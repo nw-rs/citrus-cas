@@ -1,16 +1,32 @@
-use core::{fmt::{Display, Formatter, Result}, cmp::Ordering};
+use core::{fmt::{Display, Formatter, Result, Debug}, cmp::Ordering};
 
 use heapless::String;
+use raw_pointer::Pointer;
 
-#[derive(Debug, Clone)]
+
+#[derive(Clone, Copy)]
 pub enum Token {
     Number(f32),
     Op(Operation),
     Var(char),
     Paren(bool),
-    Func(String<8>),
+    Func(Pointer<String<8>>),
     Divider,
     Terminator,
+}
+
+impl Debug for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Token::Number(n) => write!(f, "{}", n),
+            Token::Op(op) => write!(f, "{}", op),
+            Token::Var(c) => write!(f, "{}", c),
+            Token::Paren(b) => write!(f, "{}", b),
+            Token::Func(p) => write!(f, "{}", p.unwrap()),
+            Token::Divider => write!(f, ","),
+            _ => write!(f, ""),
+        }
+    }
 }
 
 impl PartialEq for Token {
@@ -20,7 +36,7 @@ impl PartialEq for Token {
             (Token::Op(op1), Token::Op(op2)) => op1 == op2,
             (Token::Var(v1), Token::Var(v2)) => v1 == v2,
             (Token::Paren(p1), Token::Paren(p2)) => p1 == p2,
-            (Token::Func(f1), Token::Func(f2)) => f1 == f2,
+            (Token::Func(f1), Token::Func(f2)) => f1.unwrap() == f2.unwrap(),
             _ => false,
         }
     }
@@ -36,7 +52,7 @@ impl Display for Token {
             Token::Var(var) => write!(f, "{}", var),
             Token::Paren(true) => write!(f, "("),
             Token::Paren(false) => write!(f, ")"),
-            Token::Func(func) => write!(f, "{}", func),
+            Token::Func(func) => write!(f, "{}", func.unwrap()),
             Token::Divider => write!(f, ","),
             _ => write!(f, ""),
         }
