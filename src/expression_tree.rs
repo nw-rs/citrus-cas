@@ -31,11 +31,33 @@ impl<const C: usize> ExpressionNode<C> {
         self.children[self.len] = Some(child);
         self.len += 1;
     }
-    pub fn remove_child(&mut self, child: Pointer<ExpressionNode<C>>) -> Pointer<ExpressionNode<C>> {
-        let id = self.children.iter().position(|x| x.unwrap().unwrap() == child.unwrap()).unwrap();
-        self.len -= 1;
-        self.children[id] = self.children[self.len];
-        child
+    pub fn remove_child(&mut self, child: Pointer<ExpressionNode<C>>) {
+        if self.contains(child) {
+            let id = self.children.iter().position(|c| child.unwrap() == c.unwrap().unwrap()).unwrap();
+            for (i, c) in self.children.iter().skip(id + 1).enumerate() {
+                self.children[i-1] = *c;
+            }
+        }
+    }
+    pub fn replace_child(&mut self, child: Pointer<ExpressionNode<C>>, new_child: Pointer<ExpressionNode<C>>) -> Pointer<ExpressionNode<C>> {
+        if self.contains(child) {
+            let id = self.children.iter().position(|c| child.unwrap() == c.unwrap().unwrap()).unwrap();
+            self.children[id] = Some(new_child);
+            child
+        } else {
+            panic!("child not found"); //do something better
+        }
+    }
+    //for commutative operations, we can add the child to the end of the list to lazy delete
+    pub fn swap_remove_child(&mut self, child: Pointer<ExpressionNode<C>>) -> Pointer<ExpressionNode<C>> {
+        if self.contains(child) {
+            let id = self.children.iter().position(|c| child.unwrap() == c.unwrap().unwrap()).unwrap();
+            self.children[id] = self.children[self.len];
+            self.len -= 1;
+            child
+        } else {
+            panic!("child not found"); //do something better
+        }
     }
     pub fn get_child(&self, id: usize) -> Pointer<ExpressionNode<C>> {
         self.children[id].unwrap()
@@ -49,6 +71,9 @@ impl<const C: usize> ExpressionNode<C> {
     }
     pub fn reassign_parent(&mut self, parent: Pointer<ExpressionNode<C>>) {
         self.parent = Some(parent);
+    }
+    pub fn contains(&self, child: Pointer<ExpressionNode<C>>) -> bool {
+        self.children.iter().any(|c| c.unwrap().unwrap() == child.unwrap())
     }
     pub fn capacity(&self) -> usize {
         C
