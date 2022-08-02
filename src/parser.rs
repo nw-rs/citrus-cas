@@ -20,6 +20,40 @@ fn parse_recursive(input: &str) -> IResult<&str, Expression> {
     alt((parse_parentheses, parse_numeric))(input)
 }
 
+fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
+    delimited(
+        space0, 
+        delimited(char('('), parse_add_sub, char(')')), 
+        space0,
+    )(input)
+}
+
+fn parse_numeric(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(space0, take_while1(is_numeric_value), space0),
+        parse_number
+    )(input)
+}
+
+fn is_numeric_value(c: char) -> bool {
+    c.is_digit(10) || c == '.'
+}
+
+fn parse_number(input: &str) -> Expression {
+    Expression::Atom(
+        Atom::Numeric(
+            match input.contains('.') {
+                true => Numeric::Decimal(input.parse::<f32>().unwrap()),
+                false => Numeric::Integer(input.parse::<i32>().unwrap()),
+            }
+        )
+    )
+}
+
+fn parse_unary(input: &str) -> IResult<&str, Expression> {
+    alt((parse_negate, parse_exponents))(input)
+}
+
 fn parse_exponents(input: &str) -> IResult<&str, Expression> {
     let (input, num) = parse_recursive(input)?;
     let (input, ops) = many0(tuple((char('^'), parse_exponents)))(input)?;
@@ -27,12 +61,10 @@ fn parse_exponents(input: &str) -> IResult<&str, Expression> {
 }
 
 fn parse_negate(input: &str) -> IResult<&str, Expression> {
-    let (input, op) = tuple((char('-'), parse_exponents))(input)?;
-    Ok((input, parse_unary_op(op)))
-}
-
-fn parse_unary(input: &str) -> IResult<&str, Expression> {
-    alt((parse_negate, parse_exponents))(input)
+    map(
+        delimited(space0, tuple((char('-'), parse_unary)), space0),
+        parse_unary_op
+    )(input)
 }
 
 fn parse_mult_div_mod(input: &str) -> IResult<&str, Expression> {
@@ -71,36 +103,6 @@ fn parse_binary_op(operator_pair: (char, Expression), expr1: Expression) -> Expr
         '%' => Expression::Modulus(Box::new(expr1), Box::new(expr2)),
         _ => panic!("Invalid operator"),
     }
-}
-
-fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
-    delimited(
-        space0, 
-        delimited(char('('), parse_add_sub, char(')')), 
-        space0,
-    )(input)
-}
-
-fn parse_numeric(input: &str) -> IResult<&str, Expression> {
-    map(
-        delimited(space0, take_while1(is_numeric_value), space0),
-        parse_number
-    )(input)
-}
-
-fn is_numeric_value(c: char) -> bool {
-    c.is_digit(10) || c == '.'
-}
-
-fn parse_number(input: &str) -> Expression {
-    Expression::Atom(
-        Atom::Numeric(
-            match input.contains('.') {
-                true => Numeric::Decimal(input.parse::<f32>().unwrap()),
-                false => Numeric::Integer(input.parse::<i32>().unwrap()),
-            }
-        )
-    )
 }
 
 #[cfg(test)]
@@ -307,6 +309,56 @@ mod tests {
                     Atom::Numeric(
                         Numeric::Integer(5)
                     )
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_spaceless() {
+        assert_eq!(parse("1+2*5"),
+            Expression::Add(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(1)
+                    )
+                )),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(2)
+                        )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(5)
+                        )
+                    ))
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_whitespace() {
+        assert_eq!(parse(" 1    +  2 *   5  "),
+            Expression::Add(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(1)
+                    )
+                )),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(2)
+                        )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(5)
+                        )
+                    ))
                 ))
             )
         );
