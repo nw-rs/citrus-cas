@@ -1,91 +1,9 @@
-use core::{
+/*use core::{
     fmt::{Display, Formatter, self},
     str::FromStr,
 };
 
 use heapless::{Vec, String};
-
-use crate::{
-    parser::math_expr,
-    token::{Operation, Token},
-    Error,
-    expression_map::ExpressionMap,
-};
-
-fn function_constructor<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>, Error> {
-    let mut output = Vec::new();
-
-    let mut function_staging = String::<8>::new();
-    for token in tokens {
-        match token {
-            Token::Var(var) => function_staging.push(var).map_err(|_| Error::NotEnoughMemory)?,
-            _ => {
-                match function_staging.len() {
-                    0 => {}
-                    1 => output.push(Token::Var(function_staging.pop().unwrap())).unwrap(),
-                    _ => {
-                        output.push(Token::Func(function_staging.clone()).into()).unwrap();
-                        function_staging.clear();
-                    }
-                }
-                output.push(token).map_err(|_| Error::NotEnoughMemory)?;
-            }
-        }
-    }
-
-    Ok(output)
-}
-
-/// the shunting yard algorithm converts an infix
-/// notation expression, for example 5 + 2 * 7, into
-/// a postfix notation expression, for example 5 2 7 * +
-fn shunting_yard<const E: usize>(tokens: Vec<Token, E>) -> Result<Vec<Token, E>, Error> {
-    let mut output = Vec::new();
-    let mut stack: Vec<Token, E> = Vec::new();
-
-    for token in tokens {
-        match token {
-            Token::Op(op) => {
-                while let Some(&Token::Op(top)) = stack.last() {
-                    if top.precedence() > op.precedence() || (top.precedence() == op.precedence() && !top.right_associative()) {
-                        output
-                            .push(stack.pop().unwrap())
-                            .map_err(|_| Error::NotEnoughMemory)?;
-                    } else {
-                        break;
-                    }
-                }
-                stack.push(token).map_err(|_| Error::NotEnoughMemory)?;
-            }
-            Token::Paren(true) => {
-                stack.push(token).map_err(|_| Error::NotEnoughMemory)?;
-            }
-            Token::Paren(false) => {
-                while let Some(stack_token) = stack.last() {                 
-                    if stack_token == &Token::Paren(true) {
-                        stack.pop().unwrap();
-                        break;
-                    } else {
-                        output
-                            .push(stack.pop().unwrap())
-                            .map_err(|_| Error::NotEnoughMemory)?;
-                    }
-                }
-                //TODO: this is incorrect, because it doesn't check whether or not it's in a function
-                stack.push(Token::Terminator).map_err(|_| Error::NotEnoughMemory)?;
-            }
-            _ => {
-                output.push(token).map_err(|_| Error::NotEnoughMemory)?;
-            }
-        }
-    }
-
-    while let Some(token) = stack.pop() {
-        output.push(token).map_err(|_| Error::NotEnoughMemory)?;
-    }
-
-    Ok(output)
-}
 
 /// A sequence of tokens which make up
 /// an expression in postfix notation
@@ -217,3 +135,4 @@ impl Display for Approx {
         }
     }
 }
+*/

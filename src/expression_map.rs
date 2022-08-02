@@ -1,4 +1,4 @@
-use heapless::{Vec, LinearMap, String,};
+/*use heapless::{Vec, LinearMap, String,};
 
 use crate::{token::Token, Expression, Error, Approx};
 
@@ -208,3 +208,4 @@ impl<const E: usize, const L: usize, const V: usize> UserFunctionMap<E, L, V> {
         self.function_map.len()
     }
 }
+*/

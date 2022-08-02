@@ -1,201 +1,108 @@
-use crate::token::Token;
-use raw_pointer::Pointer;
+use core::fmt;
+use alloc::boxed::Box;
 
-/// a node in the expression tree
-#[derive(Clone, Copy)]
-pub struct ExpressionNode<const CHILDREN: usize> {
-    pub value: Token,
-    children: [Option<Pointer<ExpressionNode<CHILDREN>>>; CHILDREN],
-    parent: Option<Pointer<ExpressionNode<CHILDREN>>>,
-    len: usize,
+use heapless::{Vec, String};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Numeric {
+    Integer(i32),
+    Decimal(f32),
+    Radical(i16, i16), //might be unnecessary?
 }
 
-impl<const C: usize> PartialEq for ExpressionNode<C> {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value && self.len == other.len
-    }
-}
-
-impl<const C: usize>  Eq for ExpressionNode<C> {}
-
-impl<const C: usize> ExpressionNode<C> {
-    pub fn default() -> Self {
-        ExpressionNode {
-            value: Token::Terminator,
-            children: [None; C],
-            parent: None,
-            len: 0,
+impl fmt::Display for Numeric {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Numeric::Integer(i) => write!(f, "{}", i),
+            Numeric::Decimal(d) => write!(f, "{}", d),
+            Numeric::Radical(r1, r2) => write!(f, "({})/({})", r1, r2), //must always be in the form of (a)/(b), for reinterpretation to work (?)
         }
-    }
-    pub fn add_child(&mut self, child: Pointer<ExpressionNode<C>>) {
-        self.children[self.len] = Some(child);
-        self.len += 1;
-    }
-    pub fn remove_child(&mut self, child: Pointer<ExpressionNode<C>>) {
-        if self.contains(child) {
-            let id = self.children.iter().position(|c| child.unwrap() == c.unwrap().unwrap()).unwrap();
-            for (i, c) in self.children.iter().skip(id + 1).enumerate() {
-                self.children[i-1] = *c;
-            }
-        }
-    }
-    pub fn replace_child(&mut self, child: Pointer<ExpressionNode<C>>, new_child: Pointer<ExpressionNode<C>>) -> Pointer<ExpressionNode<C>> {
-        if self.contains(child) {
-            let id = self.children.iter().position(|c| child.unwrap() == c.unwrap().unwrap()).unwrap();
-            self.children[id] = Some(new_child);
-            child
-        } else {
-            panic!("child not found"); //do something better
-        }
-    }
-    //for commutative operations, we can add the child to the end of the list to lazy delete
-    pub fn swap_remove_child(&mut self, child: Pointer<ExpressionNode<C>>) -> Pointer<ExpressionNode<C>> {
-        if self.contains(child) {
-            let id = self.children.iter().position(|c| child.unwrap() == c.unwrap().unwrap()).unwrap();
-            self.children[id] = self.children[self.len];
-            self.len -= 1;
-            child
-        } else {
-            panic!("child not found"); //do something better
-        }
-    }
-    pub fn get_child(&self, id: usize) -> Pointer<ExpressionNode<C>> {
-        self.children[id].unwrap()
-    }
-    //awful
-    pub fn get_children(&self) -> [Option<Pointer<ExpressionNode<C>>>; C] {
-        self.children
-    }
-    pub fn get_parent(&self) -> Option<Pointer<ExpressionNode<C>>> {
-        self.parent
-    }
-    pub fn reassign_parent(&mut self, parent: Pointer<ExpressionNode<C>>) {
-        self.parent = Some(parent);
-    }
-    pub fn contains(&self, child: Pointer<ExpressionNode<C>>) -> bool {
-        self.children.iter().any(|c| c.unwrap().unwrap() == child.unwrap())
-    }
-    pub fn capacity(&self) -> usize {
-        C
-    }
-    pub fn len(&self) -> usize {
-        self.len
     }
 }
 
-/// an abstract syntax tree that represents a mathematical expression
-/// structured for being heapless and safe
-pub struct ExpressionTree<const LENGTH: usize, const CHILDREN: usize> {
-    pub nodes: [ExpressionNode<CHILDREN>; LENGTH],
-    pub root: Pointer<ExpressionNode<CHILDREN>>,
-    len: usize,
+#[derive(Debug, Clone, PartialEq)]
+pub enum Atom {
+    Numeric(Numeric),
+    Variable(char),
 }
 
-impl<const L: usize, const C: usize> ExpressionTree<L, C> {
-    pub fn new() -> Self {
-        Self {
-            nodes: [ExpressionNode::<C>::default(); L],
-            root: Pointer::new(&mut ExpressionNode::<C>::default()),
-            len: 0,
+impl fmt::Display for Atom {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Atom::Numeric(n) => write!(f, "{}", n),
+            Atom::Variable(v) => write!(f, "{}", v),
         }
     }
-    pub fn add_node(&mut self, mut parent: Pointer<ExpressionNode<C>>, child: ExpressionNode<C>) -> Result<(), ExpressionNode<C>> {
-        if self.len() == 0 {
-            self.len += 1;
+}
 
-            self.nodes[0] = child.clone();
-            self.root = Pointer::new(&mut self.nodes[0]);
+//concrete syntax tree, not an abstract syntax tree
+#[derive(Debug, PartialEq)]
+pub enum Expression {
+    //atoms
+    Atom(Atom),
 
-            Ok(())
-        }
-        else if self.len() < self.capacity() {
-            self.len += 1;
+    //unary operators
+    Negate(Box<Expression>),
+    Factorial(Box<Expression>),
+    Percent(Box<Expression>),
 
-            self.nodes[self.len()] = child.clone();
-            parent.add_child(Pointer::<ExpressionNode<C>>::new(&mut self.nodes[self.len]));
+    //binary operators
+    Add(Box<Expression>, Box<Expression>),
+    Subtract(Box<Expression>, Box<Expression>),
+    Multiply(Box<Expression>, Box<Expression>),
+    Divide(Box<Expression>, Box<Expression>),
+    Power(Box<Expression>, Box<Expression>),
+    Modulus(Box<Expression>, Box<Expression>),
 
-            Ok(())
-        } else {
-            Err(child)
-        }
-    }
-    pub fn remove_branch(&mut self, node: Pointer<ExpressionNode<C>>) -> Result<(), Pointer<ExpressionNode<C>>> {
-        if !self.contains(node) {
-            return Err(node);
-        }
+    //n-ary operators
+    Function { //TODO: make smaller somehow?
+        name: String<8>,
+        args: Vec<Box<Expression>, 8>,
+    },
+}
 
-        //because this recursively removes children from this node, we need to clone its children
-        let children = node.unwrap().get_children().clone();
-        children.iter().for_each(|child| {
-            if let Some(c) = child {
-                self.remove_branch(*c);
-            }
-        });
-
-        //lazy deletion (send node to a place where it will be overwritten)
-        node.unwrap().get_parent().unwrap().remove_child(node);
-        self.len -= 1;
-        self.swap_branch(node, Pointer::new(&mut self.nodes[self.len()+1])); 
-
-        Ok(())
-    }
-    pub fn swap_branch(&mut self, node1: Pointer<ExpressionNode<C>>, node2: Pointer<ExpressionNode<C>>) -> Result<(), Pointer<ExpressionNode<C>>> {
-        if !(self.contains(node1) && self.contains(node2)) {
-            return Err(node1);
-        }
+impl Expression {
+    //reorganizes the expression tree to combine similar operations
+    pub fn simplify(&mut self) {
         
-        let children2 = node2.unwrap().get_children().clone();
-        
-        node1.unwrap().get_children().iter().for_each(|child| {
-            if let Some(c) = child {
-                c.reassign_parent(node2);
+    }
+    //simplifies, then iterates the evaluation maps over the tree
+    pub fn evaluate(&self) -> Expression {
+        unimplemented!()
+    }
+    //evaluates, then iterates the approximation maps over the tree
+    pub fn approximate(&self) -> Result<f32, ()> {
+        unimplemented!()
+    }
+}
+
+impl fmt::Display for Expression {
+    //TODO: smarter parentheses, likely using some kind of traversal?
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expression::Atom(a) => write!(f, "{}", a),
+            
+            Expression::Negate(e) => write!(f, "-({})", e),
+            Expression::Factorial(e) => write!(f, "({})!", e),
+            Expression::Percent(e) => write!(f, "({})%", e),
+            
+            Expression::Add(l, r) => write!(f, "({} + {})", l, r),
+            Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),
+            Expression::Multiply(l, r) => write!(f, "({} * {})", l, r),
+            Expression::Divide(l, r) => write!(f, "({} / {})", l, r),
+            Expression::Power(l, r) => write!(f, "({} ^ {})", l, r),
+            Expression::Modulus(l, r) => write!(f, "({} % {})", l, r),
+            
+            Expression::Function { name, args } => {
+                write!(f, "{}(", name)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ")")
             }
-        });
-
-        for child in children2 {
-            if let Some(c) = child {
-                c.reassign_parent(node1);
-            }
         }
-
-        Ok(())
-    }
-    pub fn give_children(&mut self, node: Pointer<ExpressionNode<C>>, new_node: Pointer<ExpressionNode<C>>) -> Result<(), Pointer<ExpressionNode<C>>> {
-        if !(self.contains(node) && self.contains(new_node)) {
-            return Err(node);
-        }
-
-        node.unwrap().get_children().iter().for_each(|child| {
-            if let Some(c) = child {
-                c.reassign_parent(new_node);
-            }
-        });
-
-        Ok(())
-    }
-    pub fn reassign_branch(&mut self, node: Pointer<ExpressionNode<C>>, new_node: Pointer<ExpressionNode<C>>) -> Result<(), Pointer<ExpressionNode<C>>> {
-        if !(self.contains(node) && self.contains(new_node)) {
-            return Err(node);
-        }
-
-        self.give_children(node, new_node)?;
-        self.remove_branch(node);
-
-        Ok(())
-    }
-    //there must be a more efficient way of doing this, bc we should know if Pointer directs towards the memory of nodes[]
-    pub fn contains(&self, node: Pointer<ExpressionNode<C>>) -> bool {
-        //we assume node is aligned, but it may not be
-        if node.as_ptr().is_null() { 
-            return false;
-        }
-
-        self.nodes.iter().any(|x| x == node.unwrap())
-    }
-    pub fn capacity(&self) -> usize {
-        L
-    }
-    pub fn len(&self) -> usize {
-        self.len
     }
 }
