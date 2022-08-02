@@ -142,10 +142,11 @@ fn parse_add_sub(input: &str) -> IResult<&str, Expression> {
 }
 
 fn parse_unary_op(operator_pair: (char, Expression)) -> Expression {
-    match operator_pair {
-        ('-', expr) => Expression::Negate(Box::new(expr)),
-        ('!', expr) => Expression::Factorial(Box::new(expr)),
-        ('%', expr) => Expression::Percent(Box::new(expr)),
+    let (operator, operand) = operator_pair;
+    match operator {
+        '-' => Expression::Negate(Box::new(operand)),
+        '!' => Expression::Factorial(Box::new(operand)),
+        '%' => Expression::Percent(Box::new(operand)),
         _ => panic!("Invalid operator"),
     }
 }
@@ -155,8 +156,8 @@ fn fold_binary_operators(expr: Expression, ops: Vec<(char, Expression)>) -> Expr
 }
 
 fn parse_binary_op(operator_pair: (char, Expression), expr1: Expression) -> Expression {
-    let (op, expr2) = operator_pair;
-    match op {
+    let (operator, expr2) = operator_pair;
+    match operator {
         '+' => Expression::Add(Box::new(expr1), Box::new(expr2)),
         '-' => Expression::Subtract(Box::new(expr1), Box::new(expr2)),
         '*' => Expression::Multiply(Box::new(expr1), Box::new(expr2)),
