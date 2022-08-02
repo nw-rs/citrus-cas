@@ -69,17 +69,16 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
                     space0, 
                     take_while1(|c: char| {c.is_alphabetic()})
                 ), 
-                delimited(
+                preceded(
                     char('('), 
-                    many0(alt((terminated(parse_add_sub, char(',')), parse_add_sub))), //inefficient
-                    char(')'),
+                    many0(terminated(parse_add_sub, alt((char(','), char(')'))))),
                 )
             )),
             space0,
         ),
-        |(name,arg)| Expression::Function {
+        |(name, arg_list)| Expression::Function {
             name: heapless::String::from_str(name).unwrap(),
-            args: arg.into_iter().map(|arg| Box::new(arg)).collect(),
+            args: arg_list.into_iter().map(|arg| Box::new(arg)).collect(),
         }
     )(input)
 }
@@ -226,14 +225,52 @@ mod tests {
 
     #[test]
     fn test_function() {
-        assert_eq!(parse("sin(1)"), 
+        assert_eq!(parse("sin(1 + -2)"), 
             Expression::Function {
                 name: heapless::String::from_str("sin").unwrap(),
                 args: vec![
+                    Box::new(Expression::Add(
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(1)
+                            )
+                        )),
+                        Box::new(Expression::Negate(
+                            Box::new(Expression::Atom(
+                                Atom::Numeric(
+                                    Numeric::Integer(2)
+                                )
+                            ))
+                        ))
+                    )),
+                ].into_iter().collect(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_multiple_arguments() {
+        assert_eq!(parse("normcdf(0, 1, 2.5, x)"),
+            Expression::Function {
+                name: heapless::String::from_str("normcdf").unwrap(),
+                args: vec![
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(0)
+                        )
+                    )),
                     Box::new(Expression::Atom(
                         Atom::Numeric(
                             Numeric::Integer(1)
                         )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Decimal(2.5)
+                        )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Variable('x')
                     )),
                 ].into_iter().collect(),
             }

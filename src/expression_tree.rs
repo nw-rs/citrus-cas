@@ -129,8 +129,9 @@ mod tests {
 
     #[test]
     fn test_fmt_parse() {
-        assert_eq!(Expression::from_str("1 * 3 + 5").unwrap(),
-            Expression::from_str(Expression::from_str("1 * 3 + 5").unwrap().to_string().as_str()).unwrap()
+        //TODO: fix Expression to_string()
+        assert_eq!(Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6").unwrap(),
+            Expression::from_str(Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6").unwrap().to_string().as_str()).unwrap()
         )
     }
 }
