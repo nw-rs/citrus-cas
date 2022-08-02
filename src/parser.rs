@@ -1,12 +1,14 @@
+use core::str::FromStr;
+
 use alloc::{boxed::Box, vec::Vec};
 
 use nom::{
     IResult, 
-    sequence::{delimited, tuple,}, 
+    sequence::{delimited, tuple, preceded, terminated,}, 
     character::complete::{space0, char,}, 
     combinator::map, 
     branch::alt, 
-    bytes::complete::take_while1,
+    bytes::complete::{take_while1, take},
     multi::many0,
 };
 
@@ -17,20 +19,28 @@ pub fn parse(input: &str) -> Expression {
 }
 
 fn parse_recursive(input: &str) -> IResult<&str, Expression> {
-    alt((parse_parentheses, parse_numeric))(input)
+    alt((parse_parentheses, parse_numeric, parse_function, parse_escape, parse_variable))(input)
 }
 
 fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
     delimited(
         space0, 
-        delimited(char('('), parse_add_sub, char(')')), 
+        delimited(
+            char('('), 
+            parse_add_sub, 
+            char(')')
+        ), 
         space0,
     )(input)
 }
 
 fn parse_numeric(input: &str) -> IResult<&str, Expression> {
     map(
-        delimited(space0, take_while1(is_numeric_value), space0),
+        delimited(
+            space0, 
+            take_while1(is_numeric_value), 
+            space0
+        ),
         parse_number
     )(input)
 }
@@ -48,6 +58,58 @@ fn parse_number(input: &str) -> Expression {
             }
         )
     )
+}
+
+fn parse_function(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(
+            space0,
+            tuple((
+                preceded(
+                    space0, 
+                    take_while1(|c: char| {c.is_alphabetic()})
+                ), 
+                preceded(
+                    char('('), 
+                    many0(terminated(parse_add_sub, alt((char(','), char(')'))))),
+                )
+            )),
+            space0,
+        ),
+        |(name, arg_list)| Expression::Function {
+            name: heapless::String::from_str(name).unwrap(),
+            args: arg_list.into_iter().map(|arg| Box::new(arg)).collect(),
+        }
+    )(input)
+}
+
+fn parse_escape(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(
+            space0, 
+            preceded(
+                char('_'), 
+                take(1usize)
+            ), 
+            space0
+        ),
+        |value: &str| Expression::Atom(
+            Atom::Escape(value.chars().next().unwrap())
+        )
+    )(input)
+}
+
+fn parse_variable(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(
+            space0, 
+            take(1usize), 
+            space0
+        ),
+        |value: &str| Expression::Atom(
+            Atom::Variable(value.chars().next().unwrap())
+        )
+    )(input)
 }
 
 fn parse_unary(input: &str) -> IResult<&str, Expression> {
@@ -80,10 +142,11 @@ fn parse_add_sub(input: &str) -> IResult<&str, Expression> {
 }
 
 fn parse_unary_op(operator_pair: (char, Expression)) -> Expression {
-    match operator_pair {
-        ('-', expr) => Expression::Negate(Box::new(expr)),
-        ('!', expr) => Expression::Factorial(Box::new(expr)),
-        ('%', expr) => Expression::Percent(Box::new(expr)),
+    let (operator, operand) = operator_pair;
+    match operator {
+        '-' => Expression::Negate(Box::new(operand)),
+        '!' => Expression::Factorial(Box::new(operand)),
+        '%' => Expression::Percent(Box::new(operand)),
         _ => panic!("Invalid operator"),
     }
 }
@@ -93,8 +156,8 @@ fn fold_binary_operators(expr: Expression, ops: Vec<(char, Expression)>) -> Expr
 }
 
 fn parse_binary_op(operator_pair: (char, Expression), expr1: Expression) -> Expression {
-    let (op, expr2) = operator_pair;
-    match op {
+    let (operator, expr2) = operator_pair;
+    match operator {
         '+' => Expression::Add(Box::new(expr1), Box::new(expr2)),
         '-' => Expression::Subtract(Box::new(expr1), Box::new(expr2)),
         '*' => Expression::Multiply(Box::new(expr1), Box::new(expr2)),
@@ -107,7 +170,9 @@ fn parse_binary_op(operator_pair: (char, Expression), expr1: Expression) -> Expr
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
+    use core::str::FromStr;
+
+    use alloc::{boxed::Box, vec};
 
     use super::parse;
     use crate::expression_tree::*;
@@ -138,6 +203,78 @@ mod tests {
                     Numeric::Decimal(1.0)
                 )
             )
+        );
+    }
+
+    #[test]
+    fn test_escape() {
+        assert_eq!(parse("_A"), 
+            Expression::Atom(
+                Atom::Escape('A')
+            )
+        );
+    }
+
+    #[test]
+    fn test_variable() {
+        assert_eq!(parse("x"), 
+            Expression::Atom(
+                Atom::Variable('x')
+            )
+        );
+    }
+
+    #[test]
+    fn test_function() {
+        assert_eq!(parse("sin(1 + -2)"), 
+            Expression::Function {
+                name: heapless::String::from_str("sin").unwrap(),
+                args: vec![
+                    Box::new(Expression::Add(
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(1)
+                            )
+                        )),
+                        Box::new(Expression::Negate(
+                            Box::new(Expression::Atom(
+                                Atom::Numeric(
+                                    Numeric::Integer(2)
+                                )
+                            ))
+                        ))
+                    )),
+                ].into_iter().collect(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_multiple_arguments() {
+        assert_eq!(parse("normcdf(0, 1, 2.5, x)"),
+            Expression::Function {
+                name: heapless::String::from_str("normcdf").unwrap(),
+                args: vec![
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(0)
+                        )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(1)
+                        )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Decimal(2.5)
+                        )
+                    )),
+                    Box::new(Expression::Atom(
+                        Atom::Variable('x')
+                    )),
+                ].into_iter().collect(),
+            }
         );
     }
 
