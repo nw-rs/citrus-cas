@@ -10,7 +10,7 @@ repository = "https://github.com/willemml/rcas"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = { version = "7.1.1", default-features = false }
+nom = { version = "7.1.1", default-features = false, features = ["alloc"] }
 heapless = "0.7.14"
 libm = "0.2.2"
 
