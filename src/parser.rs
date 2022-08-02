@@ -4,9 +4,9 @@ use nom::{
     IResult, 
     sequence::{delimited, tuple,}, 
     character::complete::{space0, char,}, 
-    combinator::{map, fail}, 
+    combinator::map, 
     branch::alt, 
-    bytes::complete::{take_while1, take_till1},
+    bytes::complete::take_while1,
     multi::many0,
 };
 
@@ -26,9 +26,18 @@ fn parse_exponents(input: &str) -> IResult<&str, Expression> {
     Ok((input, fold_binary_operators(num, ops)))
 }
 
+fn parse_negate(input: &str) -> IResult<&str, Expression> {
+    let (input, op) = tuple((char('-'), parse_exponents))(input)?;
+    Ok((input, parse_unary_op(op)))
+}
+
+fn parse_unary(input: &str) -> IResult<&str, Expression> {
+    alt((parse_negate, parse_exponents))(input)
+}
+
 fn parse_mult_div_mod(input: &str) -> IResult<&str, Expression> {
-    let (input, num) = parse_exponents(input)?;
-    let (input, ops) = many0(tuple((alt((char('*'), char('/'), char('%'))), parse_exponents)))(input)?;
+    let (input, num) = parse_unary(input)?;
+    let (input, ops) = many0(tuple((alt((char('*'), char('/'), char('%'))), parse_unary)))(input)?;
     Ok((input, fold_binary_operators(num, ops)))
 }
 
@@ -36,6 +45,15 @@ fn parse_add_sub(input: &str) -> IResult<&str, Expression> {
     let (input, num) = parse_mult_div_mod(input)?;
     let (input, ops) = many0(tuple((alt((char('+'), char('-'))), parse_mult_div_mod)))(input)?;
     Ok((input, fold_binary_operators(num, ops)))
+}
+
+fn parse_unary_op(operator_pair: (char, Expression)) -> Expression {
+    match operator_pair {
+        ('-', expr) => Expression::Negate(Box::new(expr)),
+        ('!', expr) => Expression::Factorial(Box::new(expr)),
+        ('%', expr) => Expression::Percent(Box::new(expr)),
+        _ => panic!("Invalid operator"),
+    }
 }
 
 fn fold_binary_operators(expr: Expression, ops: Vec<(char, Expression)>) -> Expression {
@@ -158,6 +176,26 @@ mod tests {
     }
 
     #[test]
+    fn test_add_negative() {
+        assert_eq!(parse("1 + -2"),
+            Expression::Add(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(1)
+                    )
+                )),
+                Box::new(Expression::Negate(
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(2)
+                        )
+                    ))
+                ))
+            )
+        );
+    }
+
+    #[test]
     fn test_modulus() {
         assert_eq!(parse("1 % 2"),
             Expression::Modulus(
@@ -206,6 +244,26 @@ mod tests {
                     Atom::Numeric(
                         Numeric::Integer(2)
                     )
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_multiply_negative() {
+        assert_eq!(parse("1 * -2"),
+            Expression::Multiply(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(1)
+                    )
+                )),
+                Box::new(Expression::Negate(
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(2)
+                        )
+                    ))
                 ))
             )
         );
