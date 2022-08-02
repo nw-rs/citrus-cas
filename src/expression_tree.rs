@@ -1,7 +1,9 @@
-use core::fmt;
+use core::{fmt, str::FromStr};
 use alloc::boxed::Box;
 
 use heapless::{Vec, String};
+
+use crate::{parser::parse, Error};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Numeric {
@@ -24,6 +26,7 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
+    Escape(char),
 }
 
 impl fmt::Display for Atom {
@@ -31,6 +34,7 @@ impl fmt::Display for Atom {
         match self {
             Atom::Numeric(n) => write!(f, "{}", n),
             Atom::Variable(v) => write!(f, "{}", v),
+            Atom::Escape(e) => write!(f, "_{}", e),
         }
     }
 }
@@ -104,5 +108,29 @@ impl fmt::Display for Expression {
                 write!(f, ")")
             }
         }
+    }
+}
+
+impl FromStr for Expression {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(parse(s))
+    }
+
+    type Err = Error;
+}
+
+#[cfg(test)]
+mod tests {
+    use core::str::FromStr;
+
+    use alloc::string::ToString;
+
+    use super::Expression;
+
+    #[test]
+    fn test_fmt_parse() {
+        assert_eq!(Expression::from_str("1 * 3 + 5").unwrap(),
+            Expression::from_str(Expression::from_str("1 * 3 + 5").unwrap().to_string().as_str()).unwrap()
+        )
     }
 }
