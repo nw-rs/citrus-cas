@@ -36,7 +36,7 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    Escape(char),
+    Escape(char, u8),
 }
 
 impl fmt::Display for Atom {
@@ -44,7 +44,7 @@ impl fmt::Display for Atom {
         match self {
             Atom::Numeric(n) => write!(f, "{}", n),
             Atom::Variable(v) => write!(f, "{}", v),
-            Atom::Escape(e) => write!(f, "_{}", e),
+            Atom::Escape(e, n) => write!(f, "_{}{}", e, n),
         }
     }
 }
