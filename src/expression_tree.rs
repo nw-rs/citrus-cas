@@ -1,15 +1,25 @@
 use core::{fmt, str::FromStr};
 use alloc::boxed::Box;
 
-use heapless::{Vec, String};
+use heapless::{Vec, String,};
 
-use crate::{parser::parse, Error};
+use crate::{parser::parse, Error, modifier::Modifier};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Numeric {
     Integer(i32),
     Decimal(f32),
     Radical(i16, i16), //might be unnecessary?
+}
+
+impl Into<f32> for Numeric {
+    fn into(self) -> f32 {
+        match self {
+            Numeric::Integer(i) => i as f32,
+            Numeric::Decimal(d) => d,
+            Numeric::Radical(n, d) => n as f32 / d as f32,
+        }
+    }
 }
 
 impl fmt::Display for Numeric {
@@ -39,8 +49,7 @@ impl fmt::Display for Atom {
     }
 }
 
-//concrete syntax tree, not an abstract syntax tree
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     //atoms
     Atom(Atom),
@@ -66,17 +75,79 @@ pub enum Expression {
 }
 
 impl Expression {
+    //iterates self bottom-up over a given modifier
+    fn mod_iterate<T: Modifier>(&mut self, modifier: &T) -> bool {
+        match self {
+            Expression::Atom(_) => {
+                modifier.modify(self)
+            }
+            Expression::Negate(e) |
+            Expression::Factorial(e) |
+            Expression::Percent(e) => {
+                let sub_sustained = e.mod_iterate(modifier);
+                modifier.modify(self) || sub_sustained
+            },
+            Expression::Add(e1, e2) |
+            Expression::Subtract(e1, e2) |
+            Expression::Multiply(e1, e2) |
+            Expression::Divide(e1, e2) |
+            Expression::Power(e1, e2) |
+            Expression::Modulus(e1, e2) => {
+                let sub_sustained = e1.mod_iterate(modifier);
+                let sub_sustained = e2.mod_iterate(modifier) || sub_sustained;
+                modifier.modify(self) || sub_sustained
+            },
+            Expression::Function { args, .. } => {
+                let mut sub_sustained = false;
+                for arg in args {
+                    sub_sustained = arg.mod_iterate(modifier) || sub_sustained;
+                }
+                modifier.modify(self) || sub_sustained
+            },
+        }
+    }
+
     //reorganizes the expression tree to combine similar operations
-    pub fn simplify(&mut self) {
-        
+    pub fn simplify<S: Modifier>(&mut self, simplifier: &S) {
+        loop {
+            if !self.mod_iterate(simplifier) {
+                break;
+            }
+        }
     }
-    //simplifies, then iterates the evaluation maps over the tree
-    pub fn evaluate(&self) -> Expression {
-        unimplemented!()
+
+    //simplifies, then uses the evaluation modifier on the tree
+    pub fn evaluate<E: Modifier, S: Modifier>(&self, evaluator: &E, simplifier: &S) -> Expression {
+        let mut expr = self.clone();
+
+        loop {
+            expr.simplify(simplifier);
+            if !expr.mod_iterate(evaluator) {
+                break;
+            }
+        }
+
+        expr
     }
-    //evaluates, then iterates the approximation maps over the tree
-    pub fn approximate(&self) -> Result<f32, ()> {
-        unimplemented!()
+
+    //evaluates, then uses the approximation modifier on the tree
+    pub fn approximate<A: Modifier, E: Modifier, S: Modifier>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<f32, ()> {
+        let mut expr = self.clone();
+
+        loop {
+            expr = expr.evaluate(evaluator, simplifier);
+            if !expr.mod_iterate(approximator) {
+                break;
+            }
+        }
+
+        match expr {
+            Expression::Atom(a) => match a {
+                Atom::Numeric(n) => Ok(n.into()),
+                _ => Err(()),
+            },
+            _ => Err(()),
+        }
     }
 }
 
