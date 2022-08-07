@@ -134,7 +134,7 @@ fn parse_unary_prefix(input: &str) -> IResult<&str, Expression> {
 
 fn parse_unary_postfix(input: &str) -> IResult<&str, Expression> {
     map(
-        delimited(space0, tuple((parse_exponents, alt((char('!'), char('%'))))), space0,),
+        delimited(space0, tuple((parse_exponents, char('!'))), space0,),
         parse_unary_postfix_op
     )(input)
 }
@@ -163,7 +163,6 @@ fn parse_unary_postfix_op(operator_pair: (Expression, char)) -> Expression {
     let (operand, operator) = operator_pair;
     match operator {
         '!' => Expression::Factorial(Box::new(operand)),
-        '%' => Expression::Percent(Box::new(operand)),
         _ => panic!("Invalid operator"),
     }
 }
@@ -478,19 +477,6 @@ mod tests {
     fn test_factorial() {
         assert_eq!(parse("5!"),
             Expression::Factorial(
-                Box::new(Expression::Atom(
-                    Atom::Numeric(
-                        Numeric::Integer(5)
-                    )
-                ))
-            )
-        );
-    }
-
-    #[test]
-    fn test_percent() {
-        assert_eq!(parse("20%"),
-            Expression::Percent(
                 Box::new(Expression::Atom(
                     Atom::Numeric(
                         Numeric::Integer(5)
