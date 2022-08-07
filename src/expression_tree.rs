@@ -36,7 +36,7 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    Escape(char),
+    Escape(char, u8),
 }
 
 impl fmt::Display for Atom {
@@ -44,7 +44,7 @@ impl fmt::Display for Atom {
         match self {
             Atom::Numeric(n) => write!(f, "{}", n),
             Atom::Variable(v) => write!(f, "{}", v),
-            Atom::Escape(e) => write!(f, "_{}", e),
+            Atom::Escape(e, n) => write!(f, "_{}{}", e, n),
         }
     }
 }
@@ -57,7 +57,6 @@ pub enum Expression {
     //unary operators
     Negate(Box<Expression>),
     Factorial(Box<Expression>),
-    Percent(Box<Expression>),
 
     //binary operators
     Add(Box<Expression>, Box<Expression>),
@@ -82,8 +81,7 @@ impl Expression {
                 modifier.modify(self)
             }
             Expression::Negate(e) |
-            Expression::Factorial(e) |
-            Expression::Percent(e) => {
+            Expression::Factorial(e) => {
                 let sub_sustained = e.mod_iterate(modifier);
                 modifier.modify(self) || sub_sustained
             },
@@ -159,7 +157,6 @@ impl fmt::Display for Expression {
             
             Expression::Negate(e) => write!(f, "-({})", e),
             Expression::Factorial(e) => write!(f, "({})!", e),
-            Expression::Percent(e) => write!(f, "({})%", e),
             
             Expression::Add(l, r) => write!(f, "({} + {})", l, r),
             Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),

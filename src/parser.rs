@@ -5,7 +5,7 @@ use alloc::{boxed::Box, vec::Vec};
 use nom::{
     IResult, 
     sequence::{delimited, tuple, preceded, terminated,}, 
-    character::complete::{space0, char,}, 
+    character::complete::{space0, char, digit1,}, 
     combinator::map, 
     branch::alt, 
     bytes::complete::{take_while1, take},
@@ -28,7 +28,7 @@ fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
         delimited(
             char('('), 
             parse_add_sub, 
-            char(')')
+            char(')'),
         ), 
         space0,
     )(input)
@@ -39,7 +39,7 @@ fn parse_numeric(input: &str) -> IResult<&str, Expression> {
         delimited(
             space0, 
             take_while1(is_numeric_value), 
-            space0
+            space0,
         ),
         parse_number
     )(input)
@@ -67,7 +67,7 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
             tuple((
                 preceded(
                     space0, 
-                    take_while1(|c: char| {c.is_alphabetic()})
+                    take_while1(|c: char| {c.is_alphabetic()}),
                 ), 
                 preceded(
                     char('('), 
@@ -86,15 +86,18 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
 fn parse_escape(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
-            space0, 
-            preceded(
-                char('_'), 
-                take(1usize)
-            ), 
-            space0
+            space0,
+            tuple((
+                preceded(
+                    char('_'), 
+                    take(1usize),
+                ),
+                digit1,
+            )), 
+            space0,
         ),
-        |value: &str| Expression::Atom(
-            Atom::Escape(value.chars().next().unwrap())
+        |(value, num): (&str, &str)| Expression::Atom(
+            Atom::Escape(value.chars().next().unwrap(), num.parse::<u8>().unwrap())
         )
     )(input)
 }
@@ -104,7 +107,7 @@ fn parse_variable(input: &str) -> IResult<&str, Expression> {
         delimited(
             space0, 
             take(1usize), 
-            space0
+            space0,
         ),
         |value: &str| Expression::Atom(
             Atom::Variable(value.chars().next().unwrap())
@@ -113,7 +116,7 @@ fn parse_variable(input: &str) -> IResult<&str, Expression> {
 }
 
 fn parse_unary(input: &str) -> IResult<&str, Expression> {
-    alt((parse_negate, parse_exponents))(input)
+    alt((parse_unary_prefix, parse_unary_postfix, parse_exponents))(input)
 }
 
 fn parse_exponents(input: &str) -> IResult<&str, Expression> {
@@ -122,10 +125,17 @@ fn parse_exponents(input: &str) -> IResult<&str, Expression> {
     Ok((input, fold_binary_operators(num, ops)))
 }
 
-fn parse_negate(input: &str) -> IResult<&str, Expression> {
+fn parse_unary_prefix(input: &str) -> IResult<&str, Expression> {
     map(
-        delimited(space0, tuple((char('-'), parse_unary)), space0),
-        parse_unary_op
+        delimited(space0, tuple((char('-'), parse_unary)), space0,),
+        parse_unary_prefix_op
+    )(input)
+}
+
+fn parse_unary_postfix(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(space0, tuple((parse_exponents, char('!'))), space0,),
+        parse_unary_postfix_op
     )(input)
 }
 
@@ -141,12 +151,18 @@ fn parse_add_sub(input: &str) -> IResult<&str, Expression> {
     Ok((input, fold_binary_operators(num, ops)))
 }
 
-fn parse_unary_op(operator_pair: (char, Expression)) -> Expression {
+fn parse_unary_prefix_op(operator_pair: (char, Expression)) -> Expression {
     let (operator, operand) = operator_pair;
     match operator {
         '-' => Expression::Negate(Box::new(operand)),
+        _ => panic!("Invalid operator"),
+    }
+}
+
+fn parse_unary_postfix_op(operator_pair: (Expression, char)) -> Expression {
+    let (operand, operator) = operator_pair;
+    match operator {
         '!' => Expression::Factorial(Box::new(operand)),
-        '%' => Expression::Percent(Box::new(operand)),
         _ => panic!("Invalid operator"),
     }
 }
@@ -208,9 +224,9 @@ mod tests {
 
     #[test]
     fn test_escape() {
-        assert_eq!(parse("_A"), 
+        assert_eq!(parse("_A1"), 
             Expression::Atom(
-                Atom::Escape('A')
+                Atom::Escape('A', 1)
             )
         );
     }
@@ -275,6 +291,37 @@ mod tests {
                     )),
                 ].into_iter().collect(),
             }
+        );
+    }
+
+    #[test]
+    fn test_advanced_function() {
+        assert_eq!(parse("5 * log(10, sin(x))"),
+            Expression::Multiply(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(5)
+                    )
+                )),
+                Box::new(Expression::Function {
+                    name: heapless::String::from_str("log").unwrap(),
+                    args: vec![
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(10)
+                            )
+                        )),
+                        Box::new(Expression::Function {
+                            name: heapless::String::from_str("sin").unwrap(),
+                            args: vec![
+                                Box::new(Expression::Atom(
+                                    Atom::Variable('x')
+                                )),
+                            ].into_iter().collect(),
+                        }),
+                    ].into_iter().collect(),
+                })
+            )
         );
     }
 
@@ -420,6 +467,19 @@ mod tests {
                 Box::new(Expression::Atom(
                     Atom::Numeric(
                         Numeric::Integer(2)
+                    )
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_factorial() {
+        assert_eq!(parse("5!"),
+            Expression::Factorial(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(5)
                     )
                 ))
             )
