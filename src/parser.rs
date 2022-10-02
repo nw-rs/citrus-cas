@@ -224,9 +224,18 @@ mod tests {
 
     #[test]
     fn test_escape() {
-        assert_eq!(parse("_A1"), 
+        assert_eq!(parse("_A2"), 
             Expression::Atom(
-                Atom::Escape('A', 1)
+                Atom::Escape('A', 2)
+            )
+        );
+    }
+
+    #[test]
+    fn test_wildcard_escape() {
+        assert_eq!(parse("_*0"), 
+            Expression::Atom(
+                Atom::Escape('*', 0)
             )
         );
     }
@@ -236,6 +245,15 @@ mod tests {
         assert_eq!(parse("x"), 
             Expression::Atom(
                 Atom::Variable('x')
+            )
+        );
+    }
+
+    #[test]
+    fn test_unicode_variable() {
+        assert_eq!(parse("π"), 
+            Expression::Atom(
+                Atom::Variable('π')
             )
         );
     }
@@ -506,6 +524,38 @@ mod tests {
                     Atom::Numeric(
                         Numeric::Integer(5)
                     )
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_nested_parentheses() {
+        assert_eq!(parse("(5 * (4 + (6 / 3)))"),
+            Expression::Multiply(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(5)
+                    )
+                )),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(4)
+                        )
+                    )),
+                    Box::new(Expression::Divide(
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(6)
+                            )
+                        )),
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(3)
+                            )
+                        ))
+                    ))
                 ))
             )
         );
