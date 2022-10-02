@@ -80,16 +80,20 @@ pub enum Expression {
 
 impl Expression {
     //reorganizes the expression tree to combine similar operations
-    pub fn simplify<S: Modifier>(&mut self, simplifier: &S) {
-        while simplifier.modify(self) {}
+    pub fn simplify<S: Modifier, const L: usize>(&mut self, simplifier: &S) {
+        for _ in 0..L {
+            if !simplifier.modify(self) {
+                break;
+            }
+        }
     }
 
     //simplifies, then uses the evaluation modifier on the tree
-    pub fn evaluate<E: Modifier, S: Modifier>(&self, evaluator: &E, simplifier: &S) -> Expression {
+    pub fn evaluate<E: Modifier, S: Modifier, const L: usize>(&self, evaluator: &E, simplifier: &S) -> Expression {
         let mut expr = self.clone();
 
-        loop {
-            expr.simplify(simplifier);
+        for _ in 0..L {
+            expr.simplify::<S, L>(simplifier);
             if !evaluator.modify(&mut expr) {
                 break;
             }
@@ -99,11 +103,11 @@ impl Expression {
     }
 
     //evaluates, then uses the approximation modifier on the tree
-    pub fn approximate<A: Modifier, E: Modifier, S: Modifier>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<Numeric, ()> {
+    pub fn approximate<A: Modifier, E: Modifier, S: Modifier, const L: usize>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<Numeric, ()> {
         let mut expr = self.clone();
 
-        loop {
-            expr = expr.evaluate(evaluator, simplifier);
+        for _ in 0..L {
+            expr = expr.evaluate::<E, S, L>(evaluator, simplifier);
             if !approximator.modify(&mut expr) {
                 break;
             }

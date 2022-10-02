@@ -62,6 +62,7 @@ impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     }
 }
 
+//8 here is a magic number, but it's the max number of arguments that can be passed to a function
 //modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
     pub search_tree: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>>,
@@ -171,7 +172,6 @@ mod tests {
     use core::str::FromStr;
 
     use alloc::{boxed::Box, vec};
-    use heapless::LinearMap;
     use libm::sinf;
 
     use crate::expression_tree::{Expression, Atom, Numeric};
@@ -231,7 +231,7 @@ mod tests {
             ].into_iter().collect(),
         };
 
-        assert_eq!(expr.approximate(&SimpleMod, &NothingMod, &NothingMod), Ok(Numeric::Decimal(0.91294525073)));
+        assert_eq!(expr.approximate::<SimpleMod, NothingMod, NothingMod, 50>(&SimpleMod, &NothingMod, &NothingMod), Ok(Numeric::Decimal(0.91294525073)));
     }
 
     #[test]
@@ -310,7 +310,7 @@ mod tests {
 
         let mut expr = Expression::from_str("(8 * 9 + 5) * (2 ^ 10)").unwrap();
         let expected_expr = Expression::from_str("30").unwrap();
-        expr.simplify(&modifier);
+        expr.simplify::<AdaptableModifier, 50>(&modifier);
 
         assert_eq!(expr, expected_expr);
     }
@@ -323,19 +323,19 @@ mod tests {
 
         let mut expr1 = Expression::from_str("2 ^ 10").unwrap();
         let expected_expr1 = Expression::from_str("log(10)").unwrap();
-        expr1.simplify(&modifier);
+        expr1.simplify::<AdaptableModifier, 50>(&modifier);
 
         assert_eq!(expr1, expected_expr1);
 
         let mut expr2 = Expression::from_str("2 ^ (10 + 5)").unwrap();
         let expected_expr2 = Expression::from_str("2 ^ (10 + 5)").unwrap();
-        expr2.simplify(&modifier);
+        expr2.simplify::<AdaptableModifier, 50>(&modifier);
 
         assert_eq!(expr2, expected_expr2);
 
         let mut expr3 = Expression::from_str("2 ^ x").unwrap();
         let expected_expr3 = Expression::from_str("log(x)").unwrap();
-        expr3.simplify(&modifier);
+        expr3.simplify::<AdaptableModifier, 50>(&modifier);
 
         assert_eq!(expr3, expected_expr3);
     }
@@ -349,7 +349,7 @@ mod tests {
 
         let mut expr1 = Expression::from_str("sin(10) + cos(10)").unwrap();
         let expected_expr1 = Expression::from_str("cos(25)").unwrap();
-        expr1.simplify(&modifier);
+        expr1.simplify::<AdaptableModifier, 50>(&modifier);
 
         assert_eq!(expr1, expected_expr1);
     }
