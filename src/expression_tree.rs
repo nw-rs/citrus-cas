@@ -393,7 +393,6 @@ impl fmt::Display for Expression {
             
             Expression::Negate(e) => write!(f, "-({})", e),
             Expression::Factorial(e) => write!(f, "({})!", e),
-            Expression::Percent(e) => write!(f, "({})%", e),
             
             Expression::Add(l, r) => write!(f, "({} + {})", l, r),
             Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),
