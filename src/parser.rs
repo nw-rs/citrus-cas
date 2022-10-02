@@ -4,8 +4,8 @@ use alloc::{boxed::Box, vec::Vec};
 
 use nom::{
     IResult, 
-    sequence::{delimited, tuple, preceded, terminated,}, 
-    character::complete::{space0, char,}, 
+    sequence::{delimited, tuple, preceded, terminated, pair,}, 
+    character::complete::{space0, char, digit1,}, 
     combinator::map, 
     branch::alt, 
     bytes::complete::{take_while1, take},
@@ -87,14 +87,17 @@ fn parse_escape(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
             space0, 
-            preceded(
-                char('_'), 
-                take(1usize)
-            ), 
+            pair(
+                preceded(
+                    char('_'), 
+                    take(1usize)
+                ),
+                digit1
+            ),
             space0
         ),
-        |value: &str| Expression::Atom(
-            Atom::Escape(value.chars().next().unwrap())
+        |value: (&str, &str)| Expression::Atom(
+            Atom::Escape(value.0.chars().next().unwrap(), value.1.parse::<u8>().unwrap())
         )
     )(input)
 }
@@ -208,9 +211,18 @@ mod tests {
 
     #[test]
     fn test_escape() {
-        assert_eq!(parse("_A"), 
+        assert_eq!(parse("_A2"), 
             Expression::Atom(
-                Atom::Escape('A')
+                Atom::Escape('A', 2)
+            )
+        );
+    }
+
+    #[test]
+    fn test_wildcard_escape() {
+        assert_eq!(parse("_*0"), 
+            Expression::Atom(
+                Atom::Escape('*', 0)
             )
         );
     }
@@ -220,6 +232,15 @@ mod tests {
         assert_eq!(parse("x"), 
             Expression::Atom(
                 Atom::Variable('x')
+            )
+        );
+    }
+
+    #[test]
+    fn test_unicode_variable() {
+        assert_eq!(parse("π"), 
+            Expression::Atom(
+                Atom::Variable('π')
             )
         );
     }
@@ -446,6 +467,38 @@ mod tests {
                     Atom::Numeric(
                         Numeric::Integer(5)
                     )
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_nested_parentheses() {
+        assert_eq!(parse("(5 * (4 + (6 / 3)))"),
+            Expression::Multiply(
+                Box::new(Expression::Atom(
+                    Atom::Numeric(
+                        Numeric::Integer(5)
+                    )
+                )),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(
+                        Atom::Numeric(
+                            Numeric::Integer(4)
+                        )
+                    )),
+                    Box::new(Expression::Divide(
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(6)
+                            )
+                        )),
+                        Box::new(Expression::Atom(
+                            Atom::Numeric(
+                                Numeric::Integer(3)
+                            )
+                        ))
+                    ))
                 ))
             )
         );
