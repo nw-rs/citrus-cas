@@ -3,8 +3,9 @@ use alloc::boxed::Box;
 
 use heapless::{Vec, String, LinearMap,};
 
-use crate::{parser::parse, Error, modifier::Modifier};
+use crate::{expression::parser::parse, Error, modifier::Modifier};
 
+//Numeric: representation of any numeric value
 #[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
 pub enum Numeric {
     Integer(i32),
@@ -12,9 +13,7 @@ pub enum Numeric {
     Radical(i16, i16), //might be unnecessary?
 }
 
-impl Eq for Numeric {
-    
-}
+impl Eq for Numeric {}
 
 impl Into<f32> for Numeric {
     fn into(self) -> f32 {
@@ -36,11 +35,12 @@ impl fmt::Display for Numeric {
     }
 }
 
+//Atom: the smallest unit of an expression
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy)]
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    Escape(char, u8),
+    Escape(char, u8), //escapes indicate where something in an expression should be replaced
 }
 
 impl fmt::Display for Atom {
@@ -53,6 +53,7 @@ impl fmt::Display for Atom {
     }
 }
 
+//Expression: a tree representing a mathematical expression
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     //atoms
@@ -79,7 +80,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    //reorganizes the expression tree to combine similar operations
+    //reorganizes the expression tree using the given modifier a max of L times
     pub fn simplify<S: Modifier, const L: usize>(&mut self, simplifier: &S) {
         for _ in 0..L {
             if !simplifier.modify(self) {
@@ -88,7 +89,7 @@ impl Expression {
         }
     }
 
-    //simplifies, then uses the evaluation modifier on the tree
+    //simplifies, then uses the evaluation modifier on the tree a max of L times
     pub fn evaluate<E: Modifier, S: Modifier, const L: usize>(&self, evaluator: &E, simplifier: &S) -> Expression {
         let mut expr = self.clone();
 
@@ -102,7 +103,7 @@ impl Expression {
         expr
     }
 
-    //evaluates, then uses the approximation modifier on the tree
+    //evaluates, then uses the approximation modifier on the tree a max of L times
     pub fn approximate<A: Modifier, E: Modifier, S: Modifier, const L: usize>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<Numeric, ()> {
         let mut expr = self.clone();
 
@@ -187,7 +188,7 @@ impl Expression {
         }
     }
 
-    //extract fn pointer from expression
+    //extracts a modification function from the given expression
     pub fn conversion(self) -> Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression> {
         match self {
             Expression::Atom(a) => match a {
@@ -204,7 +205,7 @@ impl Expression {
                         let mut args = Vec::new();
 
                         for arg in a1.clone() {
-                            args.push(Box::new(arg.conversion()(&map)));
+                            args.push(Box::new(arg.conversion()(&map))).unwrap(); //vec overflow is impossible here
                         }
                         
                         Expression::Function { name: n1.clone(), args }
@@ -277,13 +278,14 @@ impl Expression {
         }
     }
 
+    //uses a template expression to extract the sub-expressions from the given expression
     pub fn extract_arguments(&self, template: &Expression, map: LinearMap<Atom, Expression, 8>) -> LinearMap<Atom, Expression, 8> {
         match (self, template) {
             (_, Expression::Atom(a)) => {
                 match a {
                     Atom::Escape(_, _) => {
                         let mut map = map;
-                        map.insert(a.clone(), self.clone());
+                        map.insert(a.clone(), self.clone()).map_err(|_| "too many arguments").unwrap();
                         map
                     }
                     _ => map
@@ -320,6 +322,7 @@ impl Expression {
 }
 
 impl PartialOrd for Expression {
+    //escapes are equivalent to their given expression types
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Expression::Atom(a), e) | (e, Expression::Atom(a)) => match a {

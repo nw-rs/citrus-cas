@@ -12,7 +12,7 @@ use nom::{
     multi::many0,
 };
 
-use crate::expression_tree::{Expression, Numeric, Atom};
+use crate::expression::expression_tree::{Expression, Numeric, Atom};
 
 pub fn parse(input: &str) -> Expression {
     parse_add_sub(input).map_err(|_| "failed to parse").unwrap().1
@@ -191,7 +191,7 @@ mod tests {
     use alloc::{boxed::Box, vec};
 
     use super::parse;
-    use crate::expression_tree::*;
+    use crate::expression::expression_tree::*;
 
     #[test]
     fn test_integer() {

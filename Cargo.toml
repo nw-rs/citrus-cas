@@ -17,7 +17,3 @@ libm = "0.2.2"
 [lib]
 name = "rcas"
 path = "src/lib.rs"
-
-[[bin]]
-name = "rcas_cli"
-path = "src/bin/bin.rs"

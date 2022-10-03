@@ -1,15 +1,13 @@
 use alloc::{boxed::Box, vec::Vec, vec};
 use heapless::LinearMap;
 
-use crate::expression_tree::{Expression, Atom};
+use crate::expression::expression_tree::{Expression, Atom};
 
-pub trait Modifier {
-    fn modify(&self, expression: &mut Expression) -> bool; //returns true if modified
-}
+use super::Modifier;
 
-//TODO: destroy
-//generic BST struct that has multiple keys
-pub struct MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
+//TODO: create more efficient AdaptableModifier backend
+//MultiKeyBinarySearchTree: generic BST struct that has multiple keys
+struct MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     pub value_pairs: Vec<(T, K)>,
     pub left: Option<Box<MultiKeyBinarySearchTree<T, K>>>,
     pub right: Option<Box<MultiKeyBinarySearchTree<T, K>>>,
@@ -18,7 +16,7 @@ pub struct MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
 impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     pub fn new(value_pairs: Vec<(T, K)>) -> Self {
         Self {
-            value_pairs/*.sort_by(Expression::hard_order)*/,
+            value_pairs,
             left: None,
             right: None,
         }
@@ -26,19 +24,18 @@ impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
 
     pub fn insert(&mut self, value_pair: (T, K)) {
         if let Some(value) = self.value_pairs.first() {
-            if value_pair.0 < self.value_pairs.first().unwrap().0 {
+            if value_pair.0 < value.0 {
                 match &mut self.left {
                     Some(left) => left.insert(value_pair),
                     None => self.left = Some(Box::new(Self::new(vec![value_pair]))),
                 }
-            } else if value_pair.0 > self.value_pairs.first().unwrap().0 {
+            } else if value_pair.0 > value.0 {
                 match &mut self.right {
                     Some(right) => right.insert(value_pair),
                     None => self.right = Some(Box::new(Self::new(vec![value_pair]))),
                 }
             } else {
                 self.value_pairs.push(value_pair);
-                //self.keys.sort_by(Expression::hard_order);
             }
         } else {
             self.value_pairs.push(value_pair);
@@ -62,13 +59,14 @@ impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     }
 }
 
-//8 here is a magic number, but it's the max number of arguments that can be passed to a function
-//modifier whose rules can be added to at runtime
+//AdaptableModifier: modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
-    pub search_tree: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>>,
+    //8 here is a magic number: it's the max number of arguments that can be passed to a function
+    search_tree: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>>,
 }
 
 impl AdaptableModifier {
+    //automatically derives an AdaptableModifier from a list of rules in string form
     pub fn from_str_list(rules: Vec<(&str, &str)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
         for (key, value) in rules {
@@ -170,72 +168,13 @@ impl Modifier for AdaptableModifier {
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
-
     use alloc::{boxed::Box, vec};
-    use libm::sinf;
 
-    use crate::expression_tree::{Expression, Atom, Numeric};
+    use crate::expression::expression_tree::Expression;
     use super::{Modifier, AdaptableModifier};
 
-    struct SimpleMod;
-
-    impl Modifier for SimpleMod {
-        fn modify(&self, expression: &mut Expression) -> bool {
-            match expression {
-                Expression::Function { name, args } => {
-                    match name.as_str() {
-                        "sin" => {
-                            *expression = Expression::Atom(
-                                Atom::Numeric(
-                                    Numeric::Decimal(
-                                        sinf(match &*args[0] {
-                                            Expression::Atom(a) => match a {
-                                                Atom::Numeric(n) => match n {
-                                                    Numeric::Decimal(d) => *d,
-                                                    _ => unimplemented!(),
-                                                },
-                                                _ => panic!("sin expects a numeric argument"),
-                                            },
-                                            _ => return false,
-                                        })
-                                    )
-                                )
-                            );
-                            true
-                        }
-                        _ => false,
-                    }
-                }
-                _ => false,
-            }
-        }
-    }
-
-    struct NothingMod;
-
-    impl Modifier for NothingMod {
-        fn modify(&self, _expression: &mut Expression) -> bool {
-            false
-        }
-    }
-
     #[test]
-    fn test_modifier_approximate() {
-        let expr = Expression::Function {
-            name: heapless::String::from_str("sin").unwrap(),
-            args: vec![Box::new(Expression::Atom(
-                Atom::Numeric(
-                    Numeric::Decimal(20.0)
-                )
-            )),
-            ].into_iter().collect(),
-        };
-
-        assert_eq!(expr.approximate::<SimpleMod, NothingMod, NothingMod, 50>(&SimpleMod, &NothingMod, &NothingMod), Ok(Numeric::Decimal(0.91294525073)));
-    }
-
-    #[test]
-    fn test_simple_adaptable() {
+    fn test_adaptable_simple() {
         let modifier = AdaptableModifier::from_str_list(vec![
             ("_*1 - _*2", "_*1 + -_*2")
         ]);
