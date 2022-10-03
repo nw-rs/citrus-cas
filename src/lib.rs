@@ -2,9 +2,8 @@
 
 extern crate alloc;
 
-mod parser;
-mod expression_tree;
-mod modifier;
+pub mod expression;
+pub mod modifier;
 
 #[derive(Debug)]
 pub enum Error {
