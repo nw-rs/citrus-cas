@@ -1,5 +1,6 @@
 use crate::expression::expression_tree::Expression;
 
+//Modifier: objects which can modify an expression
 pub trait Modifier {
     fn modify(&self, expression: &mut Expression) -> bool; //returns true if modified
 }

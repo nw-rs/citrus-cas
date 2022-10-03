@@ -40,7 +40,7 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    Escape(char, u8), //escapes indicate where something in an expression should be replaced
+    Escape(char, u8), //escapes indicate where something in an expression should be replaced: A for atoms, F for functions, and * for everything
 }
 
 impl fmt::Display for Atom {
@@ -126,7 +126,7 @@ impl Expression {
     //returns the number of escapes in the other expression, or None if the expressions are not equal
     pub fn level_eq(&self, other: &Self) -> Option<u8> {
         match (self, other) {
-            (Expression::Atom(a), e) | (e, Expression::Atom(a)) => match a {
+            (e, Expression::Atom(a)) => match a {
                 Atom::Escape(escape, _) => match escape {
                     'A' => match e {
                         Expression::Atom(_) => Some(1),
@@ -139,28 +139,19 @@ impl Expression {
                     '*' => Some(1),
                     _ => unimplemented!(),
                 }
-                _ => match e {
-                    Expression::Atom(a) => match a {
-                        Atom::Escape(escape, _) => match escape {
-                            'A' => Some(1),
-                            'F' => None,
-                            '*' => Some(1),
-                            _ => unimplemented!(),
-                        }
-                        _ => if self == other { Some(0) } else { None },
-                    }
-                    _ => if self == other { Some(0) } else { None },
-                }
+                _ => if self == other { Some(0) } else { None },
             },
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => {
                 if n1 == n2 {
                     let mut level = 0;
+
                     for (arg1, arg2) in a1.iter().zip(a2.iter()) {
                         match arg1.level_eq(arg2) {
                             Some(l) => level += l,
                             None => return None,
                         }
                     }
+                    
                     Some(level)
                 } else {
                     None
@@ -190,92 +181,54 @@ impl Expression {
 
     //extracts a modification function from the given expression
     pub fn conversion(self) -> Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression> {
-        match self {
-            Expression::Atom(a) => match a {
-                Atom::Escape(_, _) => {
-                    Box::new(move |map: &LinearMap<Atom, Expression, 8>| map.get(&a).unwrap().clone())
+        Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
+            match &self {
+                Expression::Atom(a) => match a {
+                    Atom::Escape(_, _) => {
+                         map.get(&a).unwrap().clone()
+                    }
+                    _ => {
+                        self.clone()
+                    }
                 }
-                _ => {
-                    Box::new(move |_| self.clone())
-                }
-            }
-            Expression::Function { name: n1, args: a1 } => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        let mut args = Vec::new();
+                Expression::Function { name: n1, args: a1 } => {
+                    let mut args = Vec::new();
 
-                        for arg in a1.clone() {
-                            args.push(Box::new(arg.conversion()(&map))).unwrap(); //vec overflow is impossible here
-                        }
-                        
-                        Expression::Function { name: n1.clone(), args }
+                    for arg in a1.clone() {
+                        args.push(Box::new(arg.conversion()(&map))).unwrap(); //vec overflow is impossible here
                     }
-                )
-            }
-            Expression::Negate(e) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Negate(Box::new(e.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Factorial(e) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Factorial(Box::new(e.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Percent(e) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Percent(Box::new(e.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Add(e1, e2) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Add(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Subtract(e1, e2) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Subtract(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Multiply(e1, e2) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Multiply(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Divide(e1, e2) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Divide(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Power(e1, e2) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Power(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
-                    }
-                )
-            }
-            Expression::Modulus(e1, e2) => {
-                Box::new(
-                    move |map: &LinearMap<Atom, Expression, 8>| {
-                        Expression::Modulus(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
-                    }
-                )
-            }
-        }
+                    
+                    Expression::Function { name: n1.clone(), args }
+                }
+                Expression::Negate(e) => {
+                    Expression::Negate(Box::new(e.clone().conversion()(&map)))
+                }
+                Expression::Factorial(e) => {
+                    Expression::Factorial(Box::new(e.clone().conversion()(&map)))
+                }
+                Expression::Percent(e) => {
+                    Expression::Percent(Box::new(e.clone().conversion()(&map)))
+                }
+                Expression::Add(e1, e2) => {
+                    Expression::Add(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
+                }
+                Expression::Subtract(e1, e2) => {
+                    Expression::Subtract(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
+                }
+                Expression::Multiply(e1, e2) => {
+                    Expression::Multiply(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
+                }
+                Expression::Divide(e1, e2) => {
+                    Expression::Divide(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
+                }
+                Expression::Power(e1, e2) => {
+                    Expression::Power(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
+                }
+                Expression::Modulus(e1, e2) => {
+                    Expression::Modulus(Box::new(e1.clone().conversion()(&map)), Box::new(e2.clone().conversion()(&map)))
+                }
+            }}
+        )
     }
 
     //uses a template expression to extract the sub-expressions from the given expression
