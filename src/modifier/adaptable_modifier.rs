@@ -6,7 +6,7 @@ use crate::expression::expression_tree::{Expression, Atom};
 use super::Modifier;
 
 //TODO: create more efficient AdaptableModifier backend
-//MultiKeyBinarySearchTree: generic BST struct that has multiple keys
+//MultiKeyBinarySearchTree: generic BST struct that has multiple keys per node
 struct MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     pub value_pairs: Vec<(T, K)>,
     pub left: Option<Box<MultiKeyBinarySearchTree<T, K>>>,
@@ -59,7 +59,7 @@ impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     }
 }
 
-//AdaptableModifier: modifier whose rules can be added to at runtime
+//AdaptableModifier: a modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
     //8 here is a magic number: it's the max number of arguments that can be passed to a function
     search_tree: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>>,
@@ -76,6 +76,8 @@ impl AdaptableModifier {
             search_tree,
         }
     }
+
+    //derives an AdaptableModifier from a list of rules in Expression and Function form
     pub fn from_fn_list(list: Vec<(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
         for (expression, function) in list {
@@ -85,9 +87,12 @@ impl AdaptableModifier {
             search_tree,
         }
     }
+
     pub fn insert_rule(&mut self, expr: Expression, func: Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>) {
         self.search_tree.insert((expr, func));
     }
+    
+    //retrieves the rule which is the closest match with the given expression
     pub fn get_rule(&self, expr: &Expression) -> Option<&(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>)> {
         match self.search_tree.get(expr) {
             Some(list) => Some({

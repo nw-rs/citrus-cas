@@ -14,6 +14,8 @@ use nom::{
 
 use crate::expression::expression_tree::{Expression, Numeric, Atom};
 
+//TODO: explain parser
+
 pub fn parse(input: &str) -> Expression {
     parse_add_sub(input).map_err(|_| "failed to parse").unwrap().1
 }
