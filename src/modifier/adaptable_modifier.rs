@@ -1,3 +1,5 @@
+use core::ops::{Add, AddAssign};
+
 use alloc::{boxed::Box, vec::Vec, vec};
 use heapless::LinearMap;
 
@@ -62,7 +64,7 @@ impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
 //AdaptableModifier: a modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
     //8 here is a magic number: it's the max number of arguments that can be passed to a function
-    search_tree: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>>,
+    search_tree: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>>,
 }
 
 impl AdaptableModifier {
@@ -78,7 +80,7 @@ impl AdaptableModifier {
     }
 
     //derives an AdaptableModifier from a list of rules in Expression and Function form
-    pub fn from_fn_list(list: Vec<(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>)>) -> Self {
+    pub fn from_fn_list(list: Vec<(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
         for (expression, function) in list {
             search_tree.insert((expression, function));
@@ -88,12 +90,12 @@ impl AdaptableModifier {
         }
     }
 
-    pub fn insert_rule(&mut self, expr: Expression, func: Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>) {
+    pub fn insert_rule(&mut self, expr: Expression, func: Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>) {
         self.search_tree.insert((expr, func));
     }
-    
+
     //retrieves the rule which is the closest match with the given expression
-    pub fn get_rule(&self, expr: &Expression) -> Option<&(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> Expression>)> {
+    pub fn get_rule(&self, expr: &Expression) -> Option<&(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)> {
         match self.search_tree.get(expr) {
             Some(list) => Some({
                 list.iter().reduce(|accum, pair| {
@@ -116,56 +118,61 @@ impl AdaptableModifier {
 
 impl Modifier for AdaptableModifier {
     fn modify(&self, expression: &mut Expression) -> bool {
-        match expression {
-            Expression::Atom(_) => {
-                if let Some(rule) = self.get_rule(expression) {
-                    *expression = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
-                    true
-                } else {
-                    false
-                }
-            }
-            Expression::Function { name: _, args: a } => {
-                let mut modified = false;
+        let mut modified = false;
 
+        match expression {
+            Expression::Atom(_) => {}
+            Expression::Function { name: _, args: a } => {
                 for expr in a {
                     modified = self.modify(expr) || modified;
-                }
-
-                if let Some(rule) = self.get_rule(expression) {
-                    *expression = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
-                    true
-                } else {
-                    modified
-                }
+                }           
             }
             Expression::Negate(e1) |
             Expression::Factorial(e1) |
-            Expression::Percent(e1) => {
-                let modified = self.modify(e1);
-
-                if let Some(rule) = self.get_rule(expression) {
-                    *expression = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
-                    true
-                } else {
-                    modified
-                }
-            }
+            Expression::Percent(e1) => modified = self.modify(e1),
             Expression::Add(e1, e2) |
             Expression::Subtract(e1, e2) |
             Expression::Multiply(e1, e2) |
             Expression::Divide(e1, e2) |
             Expression::Power(e1, e2) |
-            Expression::Modulus(e1, e2) => {
-                let modified = self.modify(e1) || self.modify(e2);
+            Expression::Modulus(e1, e2) => modified = self.modify(e1) || self.modify(e2),
+        }
 
-                if let Some(rule) = self.get_rule(expression) {
-                    *expression = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
-                    true
-                } else {
-                    modified
-                }
-            }
+        if let Some(rule) = self.get_rule(expression) {
+            (*expression, modified) = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()))
+        }
+        
+        modified
+    }
+}
+
+fn get_value_pairs(mkbst: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>>) -> Vec<(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)> {
+    let mut value_pairs = mkbst.value_pairs;
+    if let Some(left) = mkbst.left {
+        value_pairs.extend(get_value_pairs(*left));
+    }
+    if let Some(right) = mkbst.right {
+        value_pairs.extend(get_value_pairs(*right));
+    }
+    value_pairs
+}
+
+impl Add for AdaptableModifier {
+    type Output = Self;
+
+    fn add(mut self, other: Self) -> Self {
+        for (expr, func) in get_value_pairs(other.search_tree) {
+            self.insert_rule(expr, func);
+        }
+        
+        self
+    }
+}
+
+impl AddAssign for AdaptableModifier {
+    fn add_assign(&mut self, other: Self) {
+        for (expr, func) in get_value_pairs(other.search_tree) {
+            self.insert_rule(expr, func);
         }
     }
 }
@@ -174,8 +181,9 @@ impl Modifier for AdaptableModifier {
 mod tests {
     use core::str::FromStr;
     use alloc::{boxed::Box, vec};
+    use heapless::LinearMap;
 
-    use crate::expression::expression_tree::Expression;
+    use crate::expression::expression_tree::{Expression, Atom};
     use super::{Modifier, AdaptableModifier};
 
     #[test]
@@ -212,7 +220,7 @@ mod tests {
             ("_*1 - _*2", "_*1 + -_*2")
         ]);
 
-        modifier.insert_rule(Expression::from_str("1 + 2").unwrap(), Box::new(|_| Expression::from_str("3").unwrap()));
+        modifier.insert_rule(Expression::from_str("1 + 2").unwrap(), Box::new(|_| (Expression::from_str("3").unwrap(), true)));
 
         let mut expr = Expression::from_str("1 + 2").unwrap();
         let expected_expr = Expression::from_str("3").unwrap();
@@ -294,6 +302,56 @@ mod tests {
         let mut expr1 = Expression::from_str("sin(10) + cos(10)").unwrap();
         let expected_expr1 = Expression::from_str("cos(25)").unwrap();
         expr1.simplify::<AdaptableModifier, 50>(&modifier);
+
+        assert_eq!(expr1, expected_expr1);
+    }
+
+    #[test]
+    fn test_adaptable_addition() {
+        let modifier1 = AdaptableModifier::from_str_list(vec![
+            ("_*1 - _*2", "_*1 + -_*2"),
+        ]);
+
+        let modifier2 = AdaptableModifier::from_str_list(vec![
+            ("_*1 / _*2", "_*1 * (_*2 ^ -1)"),
+        ]);
+
+        let modifier3 = modifier1 + modifier2;
+
+        let mut expr1 = Expression::from_str("1 - 2").unwrap();
+        let expected_expr1 = Expression::from_str("1 + -2").unwrap();
+        modifier3.modify(&mut expr1);
+
+        assert_eq!(expr1, expected_expr1);
+
+        let mut expr2 = Expression::from_str("1 / 2").unwrap();
+        let expected_expr2 = Expression::from_str("1 * (2 ^ -1)").unwrap();
+        modifier3.modify(&mut expr2);
+
+        assert_eq!(expr2, expected_expr2);
+    }
+
+    #[test]
+    fn test_adaptable_complex() {
+        let mut modifier = AdaptableModifier::from_str_list(vec![
+            ("_*1 - -_*2", "_*1 + _*2"),
+        ]);
+
+        let numeric_add = Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
+            match (map.get(&Atom::Escape('A', 1)).unwrap(), map.get(&Atom::Escape('A', 2)).unwrap()) {
+                (Expression::Atom(a), Expression::Atom(b)) => match (a, b) {
+                    (Atom::Numeric(a), Atom::Numeric(b)) => (Expression::Atom(Atom::Numeric(*a + *b)), true),
+                    _ => (Expression::Atom(*a) + Expression::Atom(*b), false)
+                }
+                _ => unreachable!()
+            }
+        });
+
+        modifier.insert_rule("_A1 + _A2".parse::<Expression>().unwrap(), numeric_add);
+
+        let mut expr1 = Expression::from_str("1 - -2").unwrap();
+        let expected_expr1 = Expression::from_str("3").unwrap();
+        expr1.simplify::<AdaptableModifier, 2>(&modifier);
 
         assert_eq!(expr1, expected_expr1);
     }
