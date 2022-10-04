@@ -1,14 +1,13 @@
 use core::str::FromStr;
 
 use alloc::{boxed::Box, vec::Vec};
-use core::borrow::Borrow;
 
 use nom::{
-    IResult, 
-    sequence::{delimited, tuple, preceded, terminated,}, 
-    character::complete::{space0, char, digit1,}, 
-    combinator::map, 
-    branch::alt, 
+    IResult,
+    sequence::{delimited, tuple, preceded, terminated,},
+    character::complete::{space0, char, digit1,},
+    combinator::map,
+    branch::alt,
     bytes::complete::{take_while1, take},
     multi::many0,
 };
@@ -22,17 +21,17 @@ pub fn parse(input: &str) -> Expression {
 }
 
 fn parse_recursive(input: &str) -> IResult<&str, Expression> {
-    alt((parse_parentheses, parse_numeric, parse_vector, parse_function, parse_escape, parse_variable))(input)
+    alt((parse_parentheses, parse_vector, parse_numeric, parse_function, parse_escape, parse_variable,))(input)
 }
 
 fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
     delimited(
-        space0, 
+        space0,
         delimited(
-            char('('), 
-            parse_add_sub, 
+            char('('),
+            parse_add_sub,
             char(')'),
-        ), 
+        ),
         space0,
     )(input)
 }
@@ -40,8 +39,8 @@ fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
 fn parse_numeric(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
-            space0, 
-            take_while1(is_numeric_value), 
+            space0,
+            take_while1(is_numeric_value),
             space0,
         ),
         parse_number
@@ -69,11 +68,11 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
             space0,
             tuple((
                 preceded(
-                    space0, 
+                    space0,
                     take_while1(|c: char| {c.is_alphabetic()}),
-                ), 
+                ),
                 preceded(
-                    char('('), 
+                    char('('),
                     many0(terminated(parse_add_sub, alt((char(','), char(')'))))),
                 )
             )),
@@ -115,11 +114,11 @@ fn parse_escape(input: &str) -> IResult<&str, Expression> {
             space0,
             tuple((
                 preceded(
-                    char('_'), 
+                    char('_'),
                     take(1usize),
                 ),
                 digit1,
-            )), 
+            )),
             space0,
         ),
         |(value, num): (&str, &str)| Expression::Atom(
@@ -131,8 +130,8 @@ fn parse_escape(input: &str) -> IResult<&str, Expression> {
 fn parse_variable(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
-            space0, 
-            take(1usize), 
+            space0,
+            take(1usize),
             space0,
         ),
         |value: &str| Expression::Atom(
@@ -221,14 +220,14 @@ mod tests {
 
     #[test]
     fn test_integer() {
-        assert_eq!(parse("1"), 
+        assert_eq!(parse("1"),
             Expression::Atom(
                 Atom::Numeric(
                     Numeric::Integer(1)
                 )
             )
         );
-        assert_eq!(parse("55"), 
+        assert_eq!(parse("55"),
             Expression::Atom(
                 Atom::Numeric(
                     Numeric::Integer(55)
@@ -239,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_decimal() {
-        assert_eq!(parse("1.0"), 
+        assert_eq!(parse("1.0"),
             Expression::Atom(
                 Atom::Numeric(
                     Numeric::Decimal(1.0)
@@ -250,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_escape() {
-        assert_eq!(parse("_A2"), 
+        assert_eq!(parse("_A2"),
             Expression::Atom(
                 Atom::Escape('A', 2)
             )
@@ -259,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_wildcard_escape() {
-        assert_eq!(parse("_*0"), 
+        assert_eq!(parse("_*0"),
             Expression::Atom(
                 Atom::Escape('*', 0)
             )
@@ -268,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_variable() {
-        assert_eq!(parse("x"), 
+        assert_eq!(parse("x"),
             Expression::Atom(
                 Atom::Variable('x')
             )
@@ -277,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_unicode_variable() {
-        assert_eq!(parse("π"), 
+        assert_eq!(parse("π"),
             Expression::Atom(
                 Atom::Variable('π')
             )
@@ -286,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_function() {
-        assert_eq!(parse("sin(1 + -2)"), 
+        assert_eq!(parse("sin(1 + -2)"),
             Expression::Function {
                 name: heapless::String::from_str("sin").unwrap(),
                 args: vec![
@@ -683,29 +682,186 @@ mod tests {
         );
     }
 
+    macro_rules! integer_atom {
+        ( $i:literal ) => {
+            Expression::Atom(Atom::Numeric(Numeric::Integer($i)))
+        }
+    }
+
     #[test]
-    fn parse_vector_literal() {
-        assert_eq!(parse("<1, 2, 3>"),
-                   Expression::Vector {
-                       backing: vec![
-                           Expression::Atom(
-                               Atom::Numeric(
-                                   Numeric::Integer(1)
-                               )
-                           ),
-                           Expression::Atom(
-                               Atom::Numeric(
-                                   Numeric::Integer(2)
-                               )
-                           ),
-                           Expression::Atom(
-                               Atom::Numeric(
-                                   Numeric::Integer(3)
-                               )
-                           )
-                       ],
-                       size: 3
-                   }
+    fn test_vector_literal() {
+        assert_eq!(
+            parse("<1, 2, 3>"),
+            Expression::Vector {
+                backing: vec![
+                    integer_atom!(1),
+                    integer_atom!(2),
+                    integer_atom!(3),
+                ],
+                size: 3 as u8,
+            }
+        )
+    }
+
+    #[test]
+    fn test_vector_in_expression() {
+        assert_eq!(
+            parse("1 + <2, 3, 4>"),
+            Expression::Add(
+                Box::new(
+                    integer_atom!(1)
+                ),
+                Box::new(
+                    Expression::Vector {
+                        backing: vec![
+                            integer_atom!(2),
+                            integer_atom!(3),
+                            integer_atom!(4),
+                        ],
+                        size: 3 as u8,
+                    }
+                )
+            )
+        )
+    }
+
+    #[test]
+    fn test_expression_in_vector() {
+        assert_eq!(
+            parse("<1 + 2, 3 - 4, 5 * 6, 7 / 8, 9 % 10>"),
+            Expression::Vector {
+                backing: vec![
+                    Expression::Add(
+                        Box::new(
+                            integer_atom!(1)
+                        ),
+                        Box::new(
+                            integer_atom!(2)
+                        )
+                    ),
+                    Expression::Subtract(
+                        Box::new(
+                            integer_atom!(3)
+                        ),
+                        Box::new(
+                            integer_atom!(4)
+                        )
+                    ),
+                    Expression::Multiply(
+                        Box::new(
+                            integer_atom!(5)
+                        ),
+                        Box::new(
+                            integer_atom!(6)
+                        )
+                    ),
+                    Expression::Divide(
+                        Box::new(
+                            integer_atom!(7)
+                        ),
+                        Box::new(
+                            integer_atom!(8)
+                        )
+                    ),
+                    Expression::Modulus(
+                        Box::new(
+                            integer_atom!(9)
+                        ),
+                        Box::new(
+                            integer_atom!(10)
+                        )
+                    ),
+                ],
+                size: 5 as u8,
+            }
+        )
+    }
+
+    macro_rules! variable_atom {
+        ( $i:expr ) => {
+            Expression::Atom(Atom::Variable($i))
+        }
+    }
+
+    #[test]
+    fn test_function_in_vector() {
+        assert_eq!(
+            parse("<r*cos(t), r*sin(t), z*t>"),
+            Expression::Vector {
+                backing: vec![
+                    Expression::Multiply(
+                        Box::new(
+                            variable_atom!('r')
+                        ),
+                        Box::new(
+                            Expression::Function {
+                                name: heapless::String::from_str("cos").unwrap(),
+                                args: vec![
+                                    Box::new(
+                                        variable_atom!('t')
+                                    )
+                                ].into_iter().collect()
+                            }
+                        )
+                    ),
+                    Expression::Multiply(
+                        Box::new(
+                            variable_atom!('r')
+                        ),
+                        Box::new(
+                            Expression::Function {
+                                name: heapless::String::from_str("sin").unwrap(),
+                                args: vec![
+                                    Box::new(
+                                        variable_atom!('t')
+                                    )
+                                ].into_iter().collect()
+                            }
+                        )
+                    ),
+                    Expression::Multiply(
+                        Box::new(
+                            variable_atom!('z')
+                        ),
+                        Box::new(
+                            variable_atom!('t')
+                        )
+                    )
+                ],
+                size: 3 as u8,
+            }
+        )
+    }
+
+    #[test]
+    fn test_vector_in_function() {
+        assert_eq!(
+            parse("dot(<1, 2, 3>, <4, 5, 6>)"),
+            Expression::Function {
+                name: heapless::String::from_str("dot").unwrap(),
+                args: vec![
+                    Box::new(
+                        Expression::Vector {
+                            backing: vec![
+                                integer_atom!(1),
+                                integer_atom!(2),
+                                integer_atom!(3),
+                            ],
+                            size: 3 as u8,
+                        }
+                    ),
+                    Box::new(
+                        Expression::Vector {
+                            backing: vec![
+                                integer_atom!(4),
+                                integer_atom!(5),
+                                integer_atom!(6),
+                            ],
+                            size: 3 as u8,
+                        }
+                    ),
+                ].into_iter().collect()
+            }
         )
     }
 }
