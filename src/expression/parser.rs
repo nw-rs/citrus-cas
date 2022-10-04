@@ -1,6 +1,7 @@
 use core::str::FromStr;
 
 use alloc::{boxed::Box, vec::Vec};
+use core::borrow::Borrow;
 
 use nom::{
     IResult, 
@@ -21,7 +22,7 @@ pub fn parse(input: &str) -> Expression {
 }
 
 fn parse_recursive(input: &str) -> IResult<&str, Expression> {
-    alt((parse_parentheses, parse_numeric, parse_function, parse_escape, parse_variable))(input)
+    alt((parse_parentheses, parse_numeric, parse_vector, parse_function, parse_escape, parse_variable))(input)
 }
 
 fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
@@ -81,6 +82,29 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
         |(name, arg_list)| Expression::Function {
             name: heapless::String::from_str(name).unwrap(),
             args: arg_list.into_iter().map(|arg| Box::new(arg)).collect(),
+        }
+    )(input)
+}
+
+fn parse_vector(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(
+            space0,
+            preceded(
+                char('<'),
+                many0(
+                    terminated(
+                        parse_add_sub,
+                        alt(
+                            (char(','), char('>'))
+                        )
+                    )
+                )
+            ),
+            space0
+        ), |vector| Expression::Vector {
+            size: vector.len() as u8,
+            backing: vector,
         }
     )(input)
 }
@@ -657,5 +681,31 @@ mod tests {
                 ))
             )
         );
+    }
+
+    #[test]
+    fn parse_vector_literal() {
+        assert_eq!(parse("<1, 2, 3>"),
+                   Expression::Vector {
+                       backing: vec![
+                           Expression::Atom(
+                               Atom::Numeric(
+                                   Numeric::Integer(1)
+                               )
+                           ),
+                           Expression::Atom(
+                               Atom::Numeric(
+                                   Numeric::Integer(2)
+                               )
+                           ),
+                           Expression::Atom(
+                               Atom::Numeric(
+                                   Numeric::Integer(3)
+                               )
+                           )
+                       ],
+                       size: 3
+                   }
+        )
     }
 }

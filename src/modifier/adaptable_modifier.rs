@@ -122,10 +122,15 @@ impl Modifier for AdaptableModifier {
 
         match expression {
             Expression::Atom(_) => {}
+            Expression::Vector { backing: vec, size: _ } => {
+                for e in vec {
+                    modified = self.modify(e) || modified;
+                }
+            }
             Expression::Function { name: _, args: a } => {
                 for expr in a {
                     modified = self.modify(expr) || modified;
-                }           
+                }
             }
             Expression::Negate(e1) |
             Expression::Factorial(e1) |
