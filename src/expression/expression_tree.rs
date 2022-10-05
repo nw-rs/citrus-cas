@@ -183,8 +183,14 @@ pub enum Expression {
 
     // Vector
     Vector {
-        backing: AlVec<Expression>, // could use heapless::Vec instead of alloc::vec::Vec
+        backing: AlVec<Expression>,
         size: u8,
+    },
+
+    // Matrix
+    Matrix {
+        backing: AlVec<Expression>,
+        shape: (u8, u8),
     },
 
     //unary operators
@@ -320,6 +326,7 @@ impl Expression {
                     }
                 }
                 Expression::Vector { backing: _, size: _ } => todo!("Figure out conversion rules"),
+                Expression::Matrix { backing: _, shape: (_, _) } => todo!("Figure out conversion rules"),
                 Expression::Function { name: n1, args: a1 } => {
                     let mut args = Vec::new();
 
@@ -465,10 +472,16 @@ impl PartialOrd for Expression {
                     _ => Some(Ordering::Greater),
                 },
             },
-            (_, Expression::Vector{ backing: _, size: _ }) => {
+            (_, Expression::Vector { backing: _, size: _ }) => {
                 todo!("Figure out ordering rules")
             }
-            (Expression::Vector{ backing: _, size: _ }, _) => {
+            (Expression::Vector { backing: _, size: _ }, _) => {
+                todo!("Figure out ordering rules")
+            }
+            (_, Expression::Matrix { backing: _, shape: (_, _) }) => {
+                todo!("Figure out ordering rules")
+            }
+            (Expression::Matrix { backing: _, shape: (_, _) }, _) => {
                 todo!("Figure out ordering rules")
             }
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => a1.partial_cmp(a2).and(n1.partial_cmp(n2)),
@@ -527,6 +540,22 @@ impl fmt::Display for Expression {
                     write!(f, "{}", e)?;
                 }
                 write!(f, ">")
+            }
+
+            Expression::Matrix { backing: vec, shape: (rs, cs) } => {
+                write!(f, "[")?;
+                for r in 0..*rs {
+                    if r > 0 {
+                        write!(f, "; ")?;
+                    }
+                    for c in 0..*cs {
+                        if c > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", vec[(*cs * r + c) as usize])?;
+                    }
+                }
+                write!(f, "]")
             }
             
             Expression::Negate(e) => write!(f, "-({})", e),

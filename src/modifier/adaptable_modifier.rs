@@ -127,6 +127,11 @@ impl Modifier for AdaptableModifier {
                     modified = self.modify(e) || modified;
                 }
             }
+            Expression::Matrix { backing: vec, shape: (_, _) } => {
+                for e in vec {
+                    modified = self.modify(e) || modified;
+                }
+            }
             Expression::Function { name: _, args: a } => {
                 for expr in a {
                     modified = self.modify(expr) || modified;
