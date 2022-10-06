@@ -1,6 +1,6 @@
 use core::str::FromStr;
 
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec::Vec, vec};
 
 use nom::{
     IResult,
@@ -11,6 +11,7 @@ use nom::{
     bytes::complete::{take_while1, take},
     multi::many0,
 };
+use nom::multi::separated_list0;
 
 use crate::expression::expression_tree::{Expression, Numeric, Atom};
 
@@ -21,7 +22,7 @@ pub fn parse(input: &str) -> Expression {
 }
 
 fn parse_recursive(input: &str) -> IResult<&str, Expression> {
-    alt((parse_parentheses, parse_vector, parse_numeric, parse_function, parse_escape, parse_variable,))(input)
+    alt((parse_parentheses, parse_vector, parse_matrix, parse_numeric, parse_function, parse_escape, parse_variable,))(input)
 }
 
 fn parse_parentheses(input: &str) -> IResult<&str, Expression> {
@@ -104,6 +105,36 @@ fn parse_vector(input: &str) -> IResult<&str, Expression> {
         ), |vector| Expression::Vector {
             size: vector.len() as u8,
             backing: vector,
+        }
+    )(input)
+}
+
+fn parse_matrix(input: &str) -> IResult<&str, Expression> {
+    map(
+        delimited(
+            space0,
+            delimited(
+                char('['),
+                separated_list0(
+                    char(';'),
+                    separated_list0(
+                        char(','),
+                        parse_add_sub,
+                    ),
+                ),
+                char(']'),
+            ),
+            space0,
+        ),
+        | flatten_matrix | {
+            let mut row_count = flatten_matrix.len() as u8;
+            let mut col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
+
+            let backing: Vec<Expression> = flatten_matrix.into_iter().flatten().collect();
+            Expression::Matrix {
+                backing,
+                shape: (row_count, col_count),
+            }
         }
     )(input)
 }
@@ -861,6 +892,175 @@ mod tests {
                         }
                     ),
                 ].into_iter().collect()
+            }
+        )
+    }
+
+    #[test]
+    fn test_square_matrix() {
+        assert_eq!(
+            parse("[1, 2; 3, 4]"),
+            Expression::Matrix {
+                backing: vec![
+                    integer_atom!(1),
+                    integer_atom!(2),
+                    integer_atom!(3),
+                    integer_atom!(4),
+                ],
+                shape: (2, 2),
+            }
+        )
+    }
+
+    #[test]
+    fn test_column_rectangular_matrix() {
+        assert_eq!(
+            parse("[1, 2, 3; 4, 5, 6]"),
+            Expression::Matrix {
+                backing: vec![
+                    integer_atom!(1),
+                    integer_atom!(2),
+                    integer_atom!(3),
+                    integer_atom!(4),
+                    integer_atom!(5),
+                    integer_atom!(6),
+                ],
+                shape: (2, 3),
+            }
+        )
+    }
+
+    #[test]
+    fn test_row_rectangular_matrix() {
+        assert_eq!(
+            parse("[1, 2; 3, 4; 5, 6]"),
+            Expression::Matrix {
+                backing: vec![
+                    integer_atom!(1),
+                    integer_atom!(2),
+                    integer_atom!(3),
+                    integer_atom!(4),
+                    integer_atom!(5),
+                    integer_atom!(6),
+                ],
+                shape: (3, 2),
+            }
+        )
+    }
+
+    #[test]
+    fn test_matrix_in_expression() {
+        assert_eq!(
+            parse("1 + [2, 3; 4, 5]"),
+            Expression::Add(
+                Box::new(integer_atom!(1)),
+                Box::new(Expression::Matrix {
+                    backing: vec![
+                        integer_atom!(2),
+                        integer_atom!(3),
+                        integer_atom!(4),
+                        integer_atom!(5),
+                    ],
+                    shape: (2, 2),
+                })
+            )
+        )
+    }
+
+    #[test]
+    fn test_expression_in_matrix() {
+        assert_eq!(
+            parse("[1 + 2 - 3, 4 * 5 / 6; 7 % 8, cos(x)]"),
+            Expression::Matrix {
+                backing: vec![
+                    Expression::Subtract(
+                        Box::new(
+                            Expression::Add(
+                                Box::new(integer_atom!(1)),
+                                Box::new(integer_atom!(2)),
+                            )
+                        ),
+                        Box::new(
+                            integer_atom!(3),
+                        ),
+                    ),
+                    Expression::Divide(
+                        Box::new(
+                            Expression::Multiply(
+                                Box::new(integer_atom!(4)),
+                                Box::new(integer_atom!(5)),
+                            ),
+                        ),
+                        Box::new(
+                            integer_atom!(6),
+                        ),
+                    ),
+                    Expression::Modulus(
+                        Box::new(integer_atom!(7)),
+                        Box::new(integer_atom!(8)),
+                    ),
+                    Expression::Function {
+                        name: heapless::String::from_str("cos").unwrap(),
+                        args: vec![
+                            Box::new(variable_atom!('x'))
+                        ].into_iter().collect(),
+                    }
+                ],
+                shape: (2, 2),
+            }
+        )
+    }
+
+    #[test]
+    fn test_matrix_in_function() {
+        assert_eq!(
+            parse("T([1, 2; 3, 4])"),
+            Expression::Function {
+                name: heapless::String::from_str("T").unwrap(),
+                args: vec![
+                    Box::new(
+                        Expression::Matrix {
+                            backing: vec![
+                                integer_atom!(1),
+                                integer_atom!(2),
+                                integer_atom!(3),
+                                integer_atom!(4),
+                            ],
+                            shape: (2, 2),
+                        }
+                    ),
+                ].into_iter().collect(),
+            }
+        )
+    }
+
+    #[test]
+    fn test_matrix_paren() {
+        assert_eq!(
+            parse("([1, 2; 3, 4])"),
+            Expression::Matrix {
+                backing: vec![
+                    integer_atom!(1),
+                    integer_atom!(2),
+                    integer_atom!(3),
+                    integer_atom!(4),
+                ],
+                shape: (2, 2)
+            }
+        )
+    }
+
+    #[test]
+    fn test_vector_paren() {
+        assert_eq!(
+            parse("(<1, 2, 3>)"),
+            Expression::Vector {
+                backing: vec![
+                    integer_atom!(1),
+                    integer_atom!(2),
+                    integer_atom!(3),
+                ],
+                size: 3,
             }
         )
     }
