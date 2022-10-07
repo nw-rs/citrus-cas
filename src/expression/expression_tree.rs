@@ -160,7 +160,13 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    Escape(char, u8), //escapes indicate where something in an expression should be replaced: A for atoms, F for functions, and * for everything
+    //escapes indicate where something in an expression should be replaced: 
+    // - A for atoms
+    // - F for functions
+    // - V for vectors
+    // - M for matrices
+    // - * for everything
+    Escape(char, u8), 
 }
 
 impl fmt::Display for Atom {
@@ -183,13 +189,13 @@ pub enum Expression {
 
     // Vector
     Vector {
-        backing: AlVec<Expression>,
+        backing: AlVec<Box<Expression>>,
         size: u8,
     },
 
     // Matrix
     Matrix {
-        backing: AlVec<Expression>,
+        backing: AlVec<Box<Expression>>,
         shape: (u8, u8),
     },
 
@@ -278,6 +284,22 @@ impl Expression {
                         },
                         _ => None,
                     }
+                    'V' => match e {
+                        Expression::Vector { backing: _, size: _ } => {
+                            let mut map = LinearMap::new();
+                            map.insert(a.clone(), e.clone());
+                            Some((1, map))
+                        },
+                        _ => None,
+                    }
+                    'M' => match e {
+                        Expression::Matrix { backing: _, shape: _ } => {
+                            let mut map = LinearMap::new();
+                            map.insert(a.clone(), e.clone());
+                            Some((1, map))
+                        },
+                        _ => None,
+                    }
                     '*' => {
                         let mut map = LinearMap::new();
                         map.insert(a.clone(), e.clone());
@@ -294,6 +316,68 @@ impl Expression {
 
                     for (arg1, arg2) in a1.iter().zip(a2.iter()) {
                         match arg1.level_eq(arg2) {
+                            Some(l) => {
+                                level += l.0;
+                                l.1.iter().for_each(|(k, v)| {
+                                    if let Some(value) = map.get(k) {
+                                        if value != v {
+                                            level=u8::MAX;
+                                        }
+                                    } else {
+                                        map.insert(k.clone(), v.clone());
+                                    }
+                                });
+                                if level == u8::MAX {
+                                    return None;
+                                }
+                            },
+                            None => return None,
+                        }
+                    }
+
+                    Some((level, map))
+                } else {
+                    None
+                }
+            }
+            (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => {
+                if s1 == s2 {
+                    let mut level = 0;
+                    let mut map = LinearMap::new();
+
+                    for (expr1, expr2) in b1.iter().zip(b2.iter()) {
+                        match expr1.level_eq(expr2) {
+                            Some(l) => {
+                                level += l.0;
+                                l.1.iter().for_each(|(k, v)| {
+                                    if let Some(value) = map.get(k) {
+                                        if value != v {
+                                            level=u8::MAX;
+                                        }
+                                    } else {
+                                        map.insert(k.clone(), v.clone());
+                                    }
+                                });
+                                if level == u8::MAX {
+                                    return None;
+                                }
+                            },
+                            None => return None,
+                        }
+                    }
+
+                    Some((level, map))
+                } else {
+                    None
+                }
+            }
+            (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => {
+                if s1 == s2 {
+                    let mut level = 0;
+                    let mut map = LinearMap::new();
+
+                    for (expr1, expr2) in b1.iter().zip(b2.iter()) {
+                        match expr1.level_eq(expr2) {
                             Some(l) => {
                                 level += l.0;
                                 l.1.iter().for_each(|(k, v)| {
@@ -369,16 +453,32 @@ impl Expression {
                         self.clone()
                     }
                 }
-                Expression::Vector { backing: _, size: _ } => todo!("Figure out conversion rules"),
-                Expression::Matrix { backing: _, shape: (_, _) } => todo!("Figure out conversion rules"),
-                Expression::Function { name: n1, args: a1 } => {
+                Expression::Function { name: n, args: a } => {
                     let mut args = Vec::new();
 
-                    for arg in a1.clone() {
+                    for arg in a.clone() {
                         args.push(Box::new(arg.conversion()(&map).0)).unwrap(); //vec overflow is impossible here
                     }
                     
-                    Expression::Function { name: n1.clone(), args }
+                    Expression::Function { name: n.clone(), args }
+                }
+                Expression::Vector { backing: b, size: s } => {
+                    let mut backing = alloc::vec::Vec::new();
+
+                    for arg in b.clone() {
+                        backing.push(Box::new(arg.conversion()(&map).0));
+                    }
+                    
+                    Expression::Vector { backing, size: s.clone() }
+                }
+                Expression::Matrix { backing: b, shape: s } => {
+                    let mut backing = alloc::vec::Vec::new();
+
+                    for arg in b.clone() {
+                        backing.push(Box::new(arg.conversion()(&map).0));
+                    }
+                    
+                    Expression::Matrix { backing, shape: s.clone() }
                 }
                 Expression::Negate(e) => {
                     Expression::Negate(Box::new(e.clone().conversion()(&map).0))
@@ -417,20 +517,42 @@ impl Expression {
             (_, Expression::Atom(a)) => {
                 match a {
                     Atom::Escape(_, _) => {
-                        let mut map = map;
-                        map.insert(a.clone(), self.clone()).map_err(|_| "too many arguments").unwrap();
-                        map
+                        let mut map_n = map;
+                        map_n.insert(a.clone(), self.clone()).map_err(|_| "too many arguments").unwrap();
+                        map_n
                     }
                     _ => map
                 }
             }
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => {
                 if n1 == n2 {
-                    let mut map = map;
+                    let mut map_n = map;
                     for (arg1, arg2) in a1.iter().zip(a2.iter()) {
-                        map = arg1.extract_arguments(arg2, map);
+                        map_n = arg1.extract_arguments(arg2, map_n);
                     }
+                    map_n
+                } else {
                     map
+                }
+            }
+            (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => {
+                if s1 == s2 {
+                    let mut map_n = map;
+                    for (arg1, arg2) in b1.iter().zip(b2.iter()) {
+                        map_n = arg1.extract_arguments(arg2, map_n);
+                    }
+                    map_n
+                } else {
+                    map
+                }
+            }
+            (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => {
+                if s1 == s2 {
+                    let mut map_n = map;
+                    for (arg1, arg2) in b1.iter().zip(b2.iter()) {
+                        map_n = arg1.extract_arguments(arg2, map_n);
+                    }
+                    map_n
                 } else {
                     map
                 }
@@ -446,8 +568,8 @@ impl Expression {
             (Expression::Divide(e11, e12), Expression::Divide(e21, e22)) |
             (Expression::Power(e11, e12), Expression::Power(e21, e22)) |
             (Expression::Modulus(e11, e12), Expression::Modulus(e21, e22)) => {
-                let map = e11.extract_arguments(e21, map);
-                e12.extract_arguments(e22, map)
+                let map_n = e11.extract_arguments(e21, map);
+                e12.extract_arguments(e22, map_n)
             }
             _ => map,
         }
@@ -490,8 +612,10 @@ impl PartialOrd for Expression {
     //escapes are equivalent to their given expression types
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (Expression::Atom(a), e) | (e, Expression::Atom(a)) => Some(Ordering::Equal),
+            (Expression::Atom(_), _) | (_, Expression::Atom(_)) => Some(Ordering::Equal),
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => a1.partial_cmp(a2).and(n1.partial_cmp(n2)),
+            (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => b1.partial_cmp(b2).and(s1.partial_cmp(s2)),
+            (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => b1.partial_cmp(b2).and(s1.partial_cmp(s2)),
             (Expression::Negate(e1), Expression::Negate(e2)) |
             (Expression::Factorial(e1), Expression::Factorial(e2)) |
             (Expression::Percent(e1), Expression::Percent(e2)) => {
@@ -505,13 +629,15 @@ impl PartialOrd for Expression {
             (Expression::Modulus(a1, a2), Expression::Modulus(b1, b2)) => {
                 match a1.partial_cmp(b1) {
                     Some(Ordering::Equal) => a2.partial_cmp(b2),
-                    Some(Ordering::Less) => Some(Ordering::Less),
-                    Some(Ordering::Greater) => Some(Ordering::Greater),
-                    None => None,
+                    o => o,
                 }
             }
             (Expression::Function { name: _, args: _ }, _) => Some(Ordering::Greater),
             (_, Expression::Function { name: _, args: _ }) => Some(Ordering::Less),
+            (Expression::Vector { backing: _, size: _ }, _) => Some(Ordering::Greater),
+            (_, Expression::Vector { backing: _, size: _ }) => Some(Ordering::Less),
+            (Expression::Matrix { backing: _, shape: _ }, _) => Some(Ordering::Greater),
+            (_, Expression::Matrix { backing: _, shape: _ }) => Some(Ordering::Less),
             (Expression::Negate(_), _) => Some(Ordering::Greater),
             (_, Expression::Negate(_)) => Some(Ordering::Less),
             (Expression::Factorial(_), _) => Some(Ordering::Greater),
@@ -528,18 +654,6 @@ impl PartialOrd for Expression {
             (_, Expression::Divide(_, _)) => Some(Ordering::Less),
             (Expression::Power(_, _), _) => Some(Ordering::Greater),
             (_, Expression::Power(_, _)) => Some(Ordering::Less),
-            (_, Expression::Vector { backing: _, size: _ }) => {
-                todo!("Figure out ordering rules")
-            }
-            (Expression::Vector { backing: _, size: _ }, _) => {
-                todo!("Figure out ordering rules")
-            }
-            (_, Expression::Matrix { backing: _, shape: (_, _) }) => {
-                todo!("Figure out ordering rules")
-            }
-            (Expression::Matrix { backing: _, shape: (_, _) }, _) => {
-                todo!("Figure out ordering rules")
-            }
         }
     }
 }
