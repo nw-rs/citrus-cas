@@ -80,10 +80,7 @@ pub type ModifierFunction = Box<dyn Fn(&LinearMap<Atom, Expression, 8>) -> (Expr
 //AdaptableModifier: a modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
     //8 here is a magic number: it's the max number of arguments that can be passed to a function
-    search_tree: MultiKeyBinarySearchTree<
-        Expression,
-        ModifierFunction,
-    >,
+    search_tree: MultiKeyBinarySearchTree<Expression, ModifierFunction>,
     memoizing_map: IndexMap<Expression, bool>,
 }
 
@@ -106,12 +103,7 @@ impl AdaptableModifier {
     }
 
     //derives an AdaptableModifier from a list of rules in Expression and Function form
-    pub fn from_fn_list(
-        list: Vec<(
-            Expression,
-            ModifierFunction,
-        )>,
-    ) -> Self {
+    pub fn from_fn_list(list: Vec<(Expression, ModifierFunction)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
 
         for (expression, function) in list {
@@ -124,23 +116,13 @@ impl AdaptableModifier {
         }
     }
 
-    pub fn insert_rule(
-        &mut self,
-        expr: Expression,
-        func: ModifierFunction,
-    ) {
+    pub fn insert_rule(&mut self, expr: Expression, func: ModifierFunction) {
         self.search_tree.insert((expr, func));
         self.memoizing_map.clear();
     }
 
     //retrieves the rule which is the closest match with the given expression
-    pub fn get_rule(
-        &self,
-        expr: &Expression,
-    ) -> Vec<&(
-        Expression,
-        ModifierFunction,
-    )> {
+    pub fn get_rule(&self, expr: &Expression) -> Vec<&(Expression, ModifierFunction)> {
         match self.search_tree.get(expr) {
             Some(list) => {
                 let (mut level, mut new_list) = (8, Vec::new()); //8 is mod magic here
@@ -299,14 +281,8 @@ impl ModifierMutable for AdaptableModifier {
 }
 
 fn get_value_pairs(
-    mkbst: MultiKeyBinarySearchTree<
-        Expression,
-        ModifierFunction,
-    >,
-) -> Vec<(
-    Expression,
-    ModifierFunction,
-)> {
+    mkbst: MultiKeyBinarySearchTree<Expression, ModifierFunction>,
+) -> Vec<(Expression, ModifierFunction)> {
     let mut value_pairs = mkbst.value_pairs;
 
     if let Some(left) = mkbst.left {
@@ -340,12 +316,7 @@ impl AddAssign for AdaptableModifier {
     }
 }
 
-impl fmt::Display
-    for MultiKeyBinarySearchTree<
-        Expression,
-        ModifierFunction,
-    >
-{
+impl fmt::Display for MultiKeyBinarySearchTree<Expression, ModifierFunction> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (expr, _) in self.value_pairs.iter() {
             write!(f, "{}", expr)?;

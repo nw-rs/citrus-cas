@@ -112,11 +112,7 @@ fn parse_matrix(input: &str) -> IResult<&str, Expression> {
             let row_count = flatten_matrix.len() as u8;
             let col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
 
-            let backing = flatten_matrix
-                .into_iter()
-                .flatten()
-                .map(Box::new)
-                .collect();
+            let backing = flatten_matrix.into_iter().flatten().map(Box::new).collect();
             Expression::Matrix {
                 backing,
                 shape: (row_count, col_count),
