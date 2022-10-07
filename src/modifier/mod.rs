@@ -1,8 +1,13 @@
 use crate::expression::expression_tree::Expression;
 
 //Modifier: objects which can modify an expression
-pub trait Modifier {
-    fn modify(&self, expression: &mut Expression) -> bool; //returns true if modified
+pub trait ModifierImmutable {
+    fn modify_immut(&self, expression: &mut Expression) -> bool; //returns true if modified
+}
+
+//modifiers which can modify themselves
+pub trait ModifierMutable { 
+    fn modify_mut(&mut self, expression: &mut Expression) -> bool; //returns true if modified
 }
 
 pub mod default;
@@ -16,12 +21,12 @@ mod tests {
     use libm::sinf;
 
     use crate::expression::expression_tree::{Expression, Atom, Numeric};
-    use super::Modifier;
+    use super::ModifierImmutable;
 
     struct SimpleMod;
 
-    impl Modifier for SimpleMod {
-        fn modify(&self, expression: &mut Expression) -> bool {
+    impl ModifierImmutable for SimpleMod {
+        fn modify_immut(&self, expression: &mut Expression) -> bool {
             match expression {
                 Expression::Function { name, args } => {
                     match name.as_str() {
@@ -54,8 +59,8 @@ mod tests {
 
     struct NothingMod;
 
-    impl Modifier for NothingMod {
-        fn modify(&self, _expression: &mut Expression) -> bool {
+    impl ModifierImmutable for NothingMod {
+        fn modify_immut(&self, _expression: &mut Expression) -> bool {
             false
         }
     }
@@ -72,7 +77,7 @@ mod tests {
             ].into_iter().collect(),
         };
 
-        assert_eq!(expr.approximate::<SimpleMod, NothingMod, NothingMod, 50>(&SimpleMod, &NothingMod, &NothingMod), Ok(Numeric::Decimal(0.91294525073)));
+        assert_eq!(expr.approximate_im::<SimpleMod, NothingMod, NothingMod, 50>(&SimpleMod, &NothingMod, &NothingMod), Ok(Numeric::Decimal(0.91294525073)));
     }
 
 }

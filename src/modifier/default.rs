@@ -218,62 +218,62 @@ mod tests {
         let reo = reorganize();
 
         let mut expr2 = "sin(5) + x".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&reo);
+        expr2.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr2, "x + sin(5)".parse::<Expression>().unwrap());
 
         let mut expr3 = "x + 3".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&reo);
+        expr3.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr3, "3 + x".parse::<Expression>().unwrap());
 
         let mut expr4 = "sin(p) * 5".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&reo);
+        expr4.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr4, "5 * sin(p)".parse::<Expression>().unwrap());
 
         let mut expr5 = "z + a + x".parse::<Expression>().unwrap();
-        expr5.simplify::<AdaptableModifier, 100>(&reo);
+        expr5.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr5, "a + x + z".parse::<Expression>().unwrap());
 
         let mut expr6 = "x + 3 + 5".parse::<Expression>().unwrap();
-        expr6.simplify::<AdaptableModifier, 100>(&reo);
+        expr6.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr6, "3 + 5 + x".parse::<Expression>().unwrap());
 
         let mut expr7 = "z + y + x + w + v".parse::<Expression>().unwrap();
-        expr7.simplify::<AdaptableModifier, 100>(&reo);
+        expr7.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr7, "v + w + x + y + z".parse::<Expression>().unwrap());
 
         let mut expr8 = "x + 3 + y + 7".parse::<Expression>().unwrap();
-        expr8.simplify::<AdaptableModifier, 100>(&reo);
+        expr8.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr8, "3 + 7 + x + y".parse::<Expression>().unwrap());
 
         let mut expr9 = "x * 3 * y * 7 * z".parse::<Expression>().unwrap();
-        expr9.simplify::<AdaptableModifier, 100>(&reo);
+        expr9.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr9, "3 * 7 * x * y * z".parse::<Expression>().unwrap());
 
         let mut expr10 = "7 * z * 5".parse::<Expression>().unwrap();
-        expr10.simplify::<AdaptableModifier, 100>(&reo);
+        expr10.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr10, "7 * 5 * z".parse::<Expression>().unwrap());
 
         let mut expr11 = "a + 7 * z * 5".parse::<Expression>().unwrap();
-        expr11.simplify::<AdaptableModifier, 100>(&reo);
+        expr11.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr11, "a + 7 * 5 * z".parse::<Expression>().unwrap());
 
         let mut expr12 = "6 * y * x + 7 * z * 5".parse::<Expression>().unwrap();
-        expr12.simplify::<AdaptableModifier, 100>(&reo);
+        expr12.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr12, "6 * x * y + 7 * 5 * z".parse::<Expression>().unwrap());
 
         let mut expr13 = "6 * y * x + sin(x) * x".parse::<Expression>().unwrap();
-        expr13.simplify::<AdaptableModifier, 100>(&reo);
+        expr13.simplify_im::<AdaptableModifier, 100>(&reo);
 
         assert_eq!(expr13, "6 * x * y + x * sin(x)".parse::<Expression>().unwrap());
     }
@@ -283,42 +283,42 @@ mod tests {
         let red = reduce();
 
         let mut expr1 = "0 + x".parse::<Expression>().unwrap();
-        expr1.simplify::<AdaptableModifier, 100>(&red);
+        expr1.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr1, "x".parse::<Expression>().unwrap());
 
         let mut expr2 = "0 * x".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&red);
+        expr2.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr2, "0".parse::<Expression>().unwrap());
 
         let mut expr3 = "0 + 0".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&red);
+        expr3.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr3, "0".parse::<Expression>().unwrap());
 
         let mut expr4 = "0 * x + 0 * y".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&red);
+        expr4.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr4, "0".parse::<Expression>().unwrap());
 
         let mut expr5 = "x + x".parse::<Expression>().unwrap();
-        expr5.simplify::<AdaptableModifier, 100>(&red);
+        expr5.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr5, "2 * x".parse::<Expression>().unwrap());
 
         let mut expr6 = "x / 1".parse::<Expression>().unwrap();
-        expr6.simplify::<AdaptableModifier, 100>(&red);
+        expr6.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr6, "x".parse::<Expression>().unwrap());
 
         let mut expr7 = "1 * x".parse::<Expression>().unwrap();
-        expr7.simplify::<AdaptableModifier, 100>(&red);
+        expr7.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr7, "x".parse::<Expression>().unwrap());
 
         let mut expr8 = "x - x".parse::<Expression>().unwrap();
-        expr8.simplify::<AdaptableModifier, 100>(&red);
+        expr8.simplify_im::<AdaptableModifier, 100>(&red);
 
         assert_eq!(expr8, "0".parse::<Expression>().unwrap());
     }
@@ -328,37 +328,37 @@ mod tests {
         let num = numeric_simplify();
 
         let mut expr1 = "1 + 2".parse::<Expression>().unwrap();
-        expr1.simplify::<AdaptableModifier, 100>(&num);
+        expr1.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr1, "3".parse::<Expression>().unwrap());
 
         let mut expr2 = "1 + 2 + 3".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&num);
+        expr2.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr2, "6".parse::<Expression>().unwrap());
 
         let mut expr3 = "5 * 5".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&num);
+        expr3.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr3, "25".parse::<Expression>().unwrap());
 
         let mut expr4 = "5.4/1.2".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&num);
+        expr4.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr4, "4.5".parse::<Expression>().unwrap());
 
         let mut expr5 = "5.4/1.2 + x".parse::<Expression>().unwrap();
-        expr5.simplify::<AdaptableModifier, 100>(&num);
+        expr5.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr5, "4.5 + x".parse::<Expression>().unwrap());
 
         let mut expr6 = "5.4/1.2 + 1".parse::<Expression>().unwrap();
-        expr6.simplify::<AdaptableModifier, 100>(&num);
+        expr6.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr6, "5.5".parse::<Expression>().unwrap());
 
         let mut expr7 = "5.4 * x / 1.2".parse::<Expression>().unwrap();
-        expr7.simplify::<AdaptableModifier, 100>(&num);
+        expr7.simplify_im::<AdaptableModifier, 100>(&num);
 
         assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); //numeric_simplify shouldn't reorganize the expression
     }
@@ -368,62 +368,62 @@ mod tests {
         let simp = simplify();
 
         let mut expr2 = "sin(5) + x".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&simp);
+        expr2.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr2, "x + sin(5)".parse::<Expression>().unwrap());
 
         let mut expr3 = "x + 3".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&simp);
+        expr3.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr3, "3 + x".parse::<Expression>().unwrap());
 
         let mut expr4 = "sin(p) * 5".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&simp);
+        expr4.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr4, "5 * sin(p)".parse::<Expression>().unwrap());
 
         let mut expr5 = "z + a + x".parse::<Expression>().unwrap();
-        expr5.simplify::<AdaptableModifier, 100>(&simp);
+        expr5.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr5, "a + x + z".parse::<Expression>().unwrap());
 
         let mut expr6 = "x + 3 + 5".parse::<Expression>().unwrap();
-        expr6.simplify::<AdaptableModifier, 100>(&simp);
+        expr6.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr6, "8 + x".parse::<Expression>().unwrap());
 
         let mut expr7 = "z + y + x + w + v".parse::<Expression>().unwrap();
-        expr7.simplify::<AdaptableModifier, 100>(&simp);
+        expr7.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr7, "v + w + x + y + z".parse::<Expression>().unwrap());
 
         let mut expr8 = "x + 3 + y + 7".parse::<Expression>().unwrap();
-        expr8.simplify::<AdaptableModifier, 100>(&simp);
+        expr8.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr8, "10 + x + y".parse::<Expression>().unwrap());
 
         let mut expr9 = "x * 3 * y * 7 * z".parse::<Expression>().unwrap();
-        expr9.simplify::<AdaptableModifier, 100>(&simp);
+        expr9.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr9, "21 * x * y * z".parse::<Expression>().unwrap());
 
         let mut expr10 = "7 * z * 5".parse::<Expression>().unwrap();
-        expr10.simplify::<AdaptableModifier, 100>(&simp);
+        expr10.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr10, "35 * z".parse::<Expression>().unwrap());
 
         let mut expr11 = "a + 7 * z * 5".parse::<Expression>().unwrap();
-        expr11.simplify::<AdaptableModifier, 100>(&simp);
+        expr11.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr11, "a + 35 * z".parse::<Expression>().unwrap());
 
         let mut expr12 = "6 * y * x + 7 * z * 5".parse::<Expression>().unwrap();
-        expr12.simplify::<AdaptableModifier, 100>(&simp);
+        expr12.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr12, "6 * x * y + 35 * z".parse::<Expression>().unwrap());
 
         let mut expr13 = "6 * y * x + sin(x) * x".parse::<Expression>().unwrap();
-        expr13.simplify::<AdaptableModifier, 100>(&simp);
+        expr13.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr13, "6 * x * y + x * sin(x)".parse::<Expression>().unwrap());
     }
@@ -433,42 +433,42 @@ mod tests {
         let simp = simplify();
 
         let mut expr1 = "0 + x".parse::<Expression>().unwrap();
-        expr1.simplify::<AdaptableModifier, 100>(&simp);
+        expr1.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr1, "x".parse::<Expression>().unwrap());
 
         let mut expr2 = "0 * x".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&simp);
+        expr2.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr2, "0".parse::<Expression>().unwrap());
 
         let mut expr3 = "0 + 0".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&simp);
+        expr3.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr3, "0".parse::<Expression>().unwrap());
 
         let mut expr4 = "0 * x + 0 * y".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&simp);
+        expr4.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr4, "0".parse::<Expression>().unwrap());
 
         let mut expr5 = "x + x".parse::<Expression>().unwrap();
-        expr5.simplify::<AdaptableModifier, 100>(&simp);
+        expr5.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr5, "2 * x".parse::<Expression>().unwrap());
 
         let mut expr6 = "x / 1".parse::<Expression>().unwrap();
-        expr6.simplify::<AdaptableModifier, 100>(&simp);
+        expr6.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr6, "x".parse::<Expression>().unwrap());
 
         let mut expr7 = "1 * x".parse::<Expression>().unwrap();
-        expr7.simplify::<AdaptableModifier, 100>(&simp);
+        expr7.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr7, "x".parse::<Expression>().unwrap());
 
         let mut expr8 = "x - x".parse::<Expression>().unwrap();
-        expr8.simplify::<AdaptableModifier, 100>(&simp);
+        expr8.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr8, "0".parse::<Expression>().unwrap());
     }
@@ -478,55 +478,57 @@ mod tests {
         let simp = simplify();
 
         let mut expr1 = "1 + 2".parse::<Expression>().unwrap();
-        expr1.simplify::<AdaptableModifier, 100>(&simp);
+        expr1.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr1, "3".parse::<Expression>().unwrap());
 
         let mut expr2 = "1 + 2 + 3".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&simp);
+        expr2.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr2, "6".parse::<Expression>().unwrap());
 
         let mut expr3 = "5 * 5".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&simp);
+        expr3.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr3, "25".parse::<Expression>().unwrap());
 
         let mut expr4 = "5.4/1.2".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&simp);
+        expr4.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr4, "4.5".parse::<Expression>().unwrap());
 
         let mut expr5 = "5.4/1.2 + x".parse::<Expression>().unwrap();
-        expr5.simplify::<AdaptableModifier, 100>(&simp);
+        expr5.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr5, "4.5 + x".parse::<Expression>().unwrap());
 
         let mut expr6 = "5.4/1.2 + 1".parse::<Expression>().unwrap();
-        expr6.simplify::<AdaptableModifier, 100>(&simp);
+        expr6.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr6, "5.5".parse::<Expression>().unwrap());
 
         let mut expr7 = "5.4 * x / 1.2".parse::<Expression>().unwrap();
-        expr7.simplify::<AdaptableModifier, 100>(&simp);
+        expr7.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); //numeric_simplify shouldn't reorganize the expression
     }
 
     #[test]
     fn test_simplify() {
+        let simp = simplify();
+
         let mut expr1 = "8 + x + 4 + x".parse::<Expression>().unwrap();
-        expr1.simplify::<AdaptableModifier, 100>(&simplify());
+        expr1.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr1, "12 + 2 * x".parse::<Expression>().unwrap());
 
         let mut expr2 = "8 + x + 4 + x + 2 * x".parse::<Expression>().unwrap();
-        expr2.simplify::<AdaptableModifier, 100>(&simplify());
+        expr2.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr2, "12 + 4 * x".parse::<Expression>().unwrap());
 
         let mut expr3 = "8 + x + 4 + x - 2 * x + 3 * x".parse::<Expression>().unwrap();
-        expr3.simplify::<AdaptableModifier, 100>(&simplify());
+        expr3.simplify_im::<AdaptableModifier, 100>(&simp);
 
         assert_eq!(expr3, "12 + 3 * x".parse::<Expression>().unwrap());
 

@@ -1,6 +1,6 @@
 use core::str::FromStr;
 
-use alloc::{boxed::Box, vec::Vec, vec};
+use alloc::{boxed::Box, vec::Vec};
 
 use nom::{
     IResult,
@@ -127,8 +127,8 @@ fn parse_matrix(input: &str) -> IResult<&str, Expression> {
             space0,
         ),
         | flatten_matrix | {
-            let mut row_count = flatten_matrix.len() as u8;
-            let mut col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
+            let row_count = flatten_matrix.len() as u8;
+            let col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
 
             let backing = flatten_matrix.into_iter().flatten().map(|a| Box::new(a)).collect();
             Expression::Matrix {

@@ -109,6 +109,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
 name = "heapless"
 version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -119,6 +125,16 @@ dependencies = [
  "rustc_version 0.4.0",
  "spin",
  "stable_deref_trait",
+]
+
+[[package]]
+name = "indexmap"
+version = "1.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a35a97730320ffe8e2d410b5d3b69279b98d2c14bdb8b70ea89ecf7888d41e"
+dependencies = [
+ "autocfg",
+ "hashbrown",
 ]
 
 [[package]]
@@ -185,6 +201,7 @@ name = "rcas"
 version = "0.1.0"
 dependencies = [
  "heapless",
+ "indexmap",
  "libm",
  "nom",
 ]

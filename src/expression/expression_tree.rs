@@ -1,9 +1,9 @@
-use core::{fmt, str::FromStr, cmp::Ordering, ops::{Add, Sub, Mul, Div}};
+use core::{fmt, str::FromStr, cmp::Ordering, ops::{Add, Sub, Mul, Div}, hash::{Hash, Hasher}};
 use alloc::boxed::Box;
 
 use heapless::{Vec, String, LinearMap,};
 
-use crate::{expression::parser::parse, Error, modifier::Modifier};
+use crate::{expression::parser::parse, Error, modifier::{ModifierImmutable, ModifierMutable}};
 
 //Numeric: representation of any numeric value
 #[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
@@ -14,6 +14,19 @@ pub enum Numeric {
 }
 
 impl Eq for Numeric {}
+
+impl Hash for Numeric {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Numeric::Integer(i) => i.hash(state),
+            Numeric::Decimal(f) => f.to_bits().hash(state),
+            Numeric::Fraction(n, d) => {
+                n.hash(state);
+                d.hash(state);
+            }
+        }
+    }
+}
 
 impl Add for Numeric {
     type Output = Self;
@@ -156,7 +169,7 @@ impl fmt::Display for Numeric {
 }
 
 //Atom: the smallest unit of an expression
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy, Hash)]
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
@@ -182,7 +195,7 @@ impl fmt::Display for Atom {
 type AlVec<T> = alloc::vec::Vec<T>;
 
 //Expression: a tree representing a mathematical expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
     //atoms
     Atom(Atom),
@@ -220,22 +233,65 @@ pub enum Expression {
 }
 
 impl Expression {
-    //reorganizes the expression tree using the given modifier a max of L times
-    pub fn simplify<S: Modifier, const L: usize>(&mut self, simplifier: &S) {
+    //reorganizes the expression tree using the given modifier a max of L times, with a modifier that cannot be mutated
+    pub fn simplify_im<S: ModifierImmutable, const L: usize>(&mut self, simplifier: &S) {
         for _ in 0..L {
-            if !simplifier.modify(self) {
+            if !simplifier.modify_immut(self) {
+                break;
+            }
+        }
+    }
+
+    //simplifies, then uses the evaluation modifier on the tree a max of L times, with a modifier that cannot be mutated
+    pub fn evaluate_im<E: ModifierImmutable, S: ModifierImmutable, const L: usize>(&self, evaluator: &E, simplifier: &S) -> Expression {
+        let mut expr = self.clone();
+
+        for _ in 0..L {
+            expr.simplify_im::<S, L>(simplifier);
+            if !evaluator.modify_immut(&mut expr) {
+                break;
+            }
+        }
+
+        expr
+    }
+
+    //evaluates, then uses the approximation modifier on the tree a max of L times, with a modifier that cannot be mutated
+    pub fn approximate_im<A: ModifierImmutable, E: ModifierImmutable, S: ModifierImmutable, const L: usize>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<Numeric, ()> {
+        let mut expr = self.clone();
+
+        for _ in 0..L {
+            expr = expr.evaluate_im::<E, S, L>(evaluator, simplifier);
+            if !approximator.modify_immut(&mut expr) {
+                break;
+            }
+        }
+
+        match expr {
+            Expression::Atom(a) => match a {
+                Atom::Numeric(n) => Ok(n),
+                _ => Err(()),
+            },
+            _ => Err(()),
+        }
+    }
+
+    //reorganizes the expression tree using the given modifier a max of L times
+    pub fn simplify<S: ModifierMutable, const L: usize>(&mut self, simplifier: &mut S) {
+        for _ in 0..L {
+            if !simplifier.modify_mut(self) {
                 break;
             }
         }
     }
 
     //simplifies, then uses the evaluation modifier on the tree a max of L times
-    pub fn evaluate<E: Modifier, S: Modifier, const L: usize>(&self, evaluator: &E, simplifier: &S) -> Expression {
+    pub fn evaluate<E: ModifierMutable, S: ModifierMutable, const L: usize>(&self, evaluator: &mut E, simplifier: &mut S) -> Expression {
         let mut expr = self.clone();
 
         for _ in 0..L {
             expr.simplify::<S, L>(simplifier);
-            if !evaluator.modify(&mut expr) {
+            if !evaluator.modify_mut(&mut expr) {
                 break;
             }
         }
@@ -244,12 +300,12 @@ impl Expression {
     }
 
     //evaluates, then uses the approximation modifier on the tree a max of L times
-    pub fn approximate<A: Modifier, E: Modifier, S: Modifier, const L: usize>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<Numeric, ()> {
+    pub fn approximate<A: ModifierMutable, E: ModifierMutable, S: ModifierMutable, const L: usize>(&self, approximator: &mut A, evaluator: &mut E, simplifier: &mut S) -> Result<Numeric, ()> {
         let mut expr = self.clone();
 
         for _ in 0..L {
             expr = expr.evaluate::<E, S, L>(evaluator, simplifier);
-            if !approximator.modify(&mut expr) {
+            if !approximator.modify_mut(&mut expr) {
                 break;
             }
         }
@@ -277,7 +333,7 @@ impl Expression {
                                     None
                                 },
                                 None => {
-                                    map.insert(*a, e.clone());
+                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
                                     Some(1)
                                 }
                             }
@@ -293,7 +349,7 @@ impl Expression {
                                     None
                                 },
                                 None => {
-                                    map.insert(*a, e.clone());
+                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
                                     Some(1)
                                 }
                             }
@@ -309,7 +365,7 @@ impl Expression {
                                     None
                                 },
                                 None => {
-                                    map.insert(*a, e.clone());
+                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
                                     Some(1)
                                 }
                             }
@@ -325,7 +381,7 @@ impl Expression {
                                     None
                                 },
                                 None => {
-                                    map.insert(*a, e.clone());
+                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
                                     Some(1)
                                 }
                             }
@@ -340,7 +396,7 @@ impl Expression {
                                 None
                             },
                             None => {
-                                map.insert(*a, e.clone());
+                                map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
                                 Some(1)
                             }
                         }
