@@ -1,4 +1,4 @@
-use core::ops::{Add, AddAssign};
+use core::{ops::{Add, AddAssign}, fmt};
 
 use alloc::{boxed::Box, vec::Vec, vec};
 use heapless::LinearMap;
@@ -9,13 +9,13 @@ use super::Modifier;
 
 //TODO: create more efficient AdaptableModifier backend
 //MultiKeyBinarySearchTree: generic BST struct that has multiple keys per node
-struct MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
+struct MultiKeyBinarySearchTree<T, K> where T: PartialOrd + fmt::Display {
     pub value_pairs: Vec<(T, K)>,
     pub left: Option<Box<MultiKeyBinarySearchTree<T, K>>>,
     pub right: Option<Box<MultiKeyBinarySearchTree<T, K>>>,
 }
 
-impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
+impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd + fmt::Display {
     pub fn new(value_pairs: Vec<(T, K)>) -> Self {
         Self {
             value_pairs,
@@ -27,19 +27,23 @@ impl<T, K> MultiKeyBinarySearchTree<T, K> where T: PartialOrd {
     pub fn insert(&mut self, value_pair: (T, K)) {
         if let Some(value) = self.value_pairs.first() {
             if value_pair.0 < value.0 {
+                //println!("left: {}", value_pair.0);
                 match &mut self.left {
                     Some(left) => left.insert(value_pair),
                     None => self.left = Some(Box::new(Self::new(vec![value_pair]))),
                 }
             } else if value_pair.0 > value.0 {
+                //println!("right: {}", value_pair.0);
                 match &mut self.right {
                     Some(right) => right.insert(value_pair),
                     None => self.right = Some(Box::new(Self::new(vec![value_pair]))),
                 }
             } else {
+                //println!("in_exists: {}", value_pair.0);
                 self.value_pairs.push(value_pair);
             }
         } else {
+            //println!("in_new: {}", value_pair.0);
             self.value_pairs.push(value_pair);
         }
     }
@@ -71,9 +75,11 @@ impl AdaptableModifier {
     //automatically derives an AdaptableModifier from a list of rules in string form
     pub fn from_str_list(rules: Vec<(&str, &str)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
+        
         for (key, value) in rules {
             search_tree.insert((key.parse::<Expression>().unwrap(), value.parse::<Expression>().unwrap().conversion()));
         }
+
         Self {
             search_tree,
         }
@@ -82,9 +88,11 @@ impl AdaptableModifier {
     //derives an AdaptableModifier from a list of rules in Expression and Function form
     pub fn from_fn_list(list: Vec<(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
+        
         for (expression, function) in list {
             search_tree.insert((expression, function));
         }
+
         Self {
             search_tree,
         }
@@ -95,23 +103,24 @@ impl AdaptableModifier {
     }
 
     //retrieves the rule which is the closest match with the given expression
-    pub fn get_rule(&self, expr: &Expression) -> Option<&(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)> {
+    pub fn get_rule(&self, expr: &Expression) -> Vec<&(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)> {
         match self.search_tree.get(expr) {
-            Some(list) => Some({
-                list.iter().reduce(|accum, pair| {
-                    if let Some(pair_eq) = expr.level_eq(&pair.0) {
-                        if expr.level_eq(&accum.0).unwrap() <= pair_eq {
-                            accum
-                        } else {
-                            pair
+            Some(list) => {
+                let (mut level, mut new_list) = (8, Vec::new()); //8 is mod magic here
+                list.iter().for_each(|pair| {
+                    if let Some(l) = expr.level_eq(&pair.0) {
+                        if l.0 == level {
+                            new_list.push(pair);
+                        } else if l.0 < level {
+                            new_list.clear();
+                            new_list.push(pair);
+                            level = l.0;
                         }
                     }
-                    else {
-                        accum
-                    }
-                }).unwrap()
-            }),
-            None => None,
+                });
+                new_list
+            },
+            None => Vec::new(),
         }
     }
 }
@@ -122,6 +131,7 @@ impl Modifier for AdaptableModifier {
 
         match expression {
             Expression::Atom(_) => {}
+
             Expression::Vector { backing: vec, size: _ } => {
                 for e in vec {
                     modified = self.modify(e) || modified;
@@ -132,24 +142,36 @@ impl Modifier for AdaptableModifier {
                     modified = self.modify(e) || modified;
                 }
             }
+
             Expression::Function { name: _, args: a } => {
                 for expr in a {
                     modified = self.modify(expr) || modified;
                 }
             }
+            
             Expression::Negate(e1) |
             Expression::Factorial(e1) |
             Expression::Percent(e1) => modified = self.modify(e1),
+            
             Expression::Add(e1, e2) |
             Expression::Subtract(e1, e2) |
             Expression::Multiply(e1, e2) |
             Expression::Divide(e1, e2) |
             Expression::Power(e1, e2) |
-            Expression::Modulus(e1, e2) => modified = self.modify(e1) || self.modify(e2),
+            Expression::Modulus(e1, e2) => {
+                let m1 = self.modify(e1); 
+                let m2 = self.modify(e2);
+                modified = m1 || m2;
+            } 
         }
 
-        if let Some(rule) = self.get_rule(expression) {
-            (*expression, modified) = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()))
+        let mut rule_mod = false;
+        for rule in self.get_rule(expression) {
+            (*expression, rule_mod) = rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
+            if rule_mod {
+                modified = true;
+                break;
+            }
         }
         
         modified
@@ -158,12 +180,15 @@ impl Modifier for AdaptableModifier {
 
 fn get_value_pairs(mkbst: MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>>) -> Vec<(Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>)> {
     let mut value_pairs = mkbst.value_pairs;
+    
     if let Some(left) = mkbst.left {
         value_pairs.extend(get_value_pairs(*left));
     }
+    
     if let Some(right) = mkbst.right {
         value_pairs.extend(get_value_pairs(*right));
     }
+    
     value_pairs
 }
 
@@ -187,6 +212,30 @@ impl AddAssign for AdaptableModifier {
     }
 }
 
+impl fmt::Display for MultiKeyBinarySearchTree<Expression, Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (expr, _) in self.value_pairs.iter() {
+            write!(f, "{}", expr)?;
+        }
+
+        if let Some(left) = &self.left {
+            write!(f, "\n..{}", left)?;
+        }
+
+        if let Some(right) = &self.right {
+            write!(f, "\n.{}", right)?;
+        }
+
+        write!(f, "end")
+    }
+}
+
+impl fmt::Display for AdaptableModifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.search_tree)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -207,6 +256,38 @@ mod tests {
         modifier.modify(&mut expr);
         
         assert_eq!(expr, expected_expr);
+    }
+
+    #[test]
+    fn test_adaptable_order() {       
+        let modifier2 = AdaptableModifier::from_str_list(vec![
+            ("_A1 + _A2", "3"),
+            ("_A1 * _A2", "4"),
+            ("_F1 + _A1", "1"),
+            ("_F1 * _A1", "2"),
+        ]);
+
+        let mut expr3 = "sin(x) * 5".parse::<Expression>().unwrap();
+        expr3.simplify::<AdaptableModifier, 100>(&modifier2);
+
+        assert_eq!(expr3, "2".parse::<Expression>().unwrap());
+
+        let modifier1 = AdaptableModifier::from_str_list(vec![
+            ("_F1 + _A1", "1"),
+            ("_F1 * _A1", "2"),
+            ("_A1 + _A2", "3"),
+            ("_A1 * _A2", "4"),
+        ]);
+
+        let mut expr1 = "x + 5".parse::<Expression>().unwrap();
+        expr1.simplify::<AdaptableModifier, 100>(&modifier1);
+
+        assert_eq!(expr1, "3".parse::<Expression>().unwrap());
+
+        let mut expr4 = "sin(x) * 5".parse::<Expression>().unwrap();
+        expr4.simplify::<AdaptableModifier, 100>(&modifier1);
+
+        assert_eq!(expr4, "2".parse::<Expression>().unwrap());
     }
 
     #[test]

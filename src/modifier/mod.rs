@@ -5,6 +5,7 @@ pub trait Modifier {
     fn modify(&self, expression: &mut Expression) -> bool; //returns true if modified
 }
 
+pub mod default;
 pub mod adaptable_modifier;
 
 #[cfg(test)]
