@@ -1,7 +1,7 @@
 use core::{fmt, str::FromStr, cmp::Ordering, ops::{Add, Sub, Mul, Div}, hash::{Hash, Hasher}};
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec, string::String};
 
-use heapless::{Vec, String, LinearMap,};
+use heapless::LinearMap;
 
 use crate::{expression::parser::parse, Error, modifier::{ModifierImmutable, ModifierMutable}};
 
@@ -192,8 +192,6 @@ impl fmt::Display for Atom {
     }
 }
 
-type AlVec<T> = alloc::vec::Vec<T>;
-
 //Expression: a tree representing a mathematical expression
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
@@ -202,13 +200,13 @@ pub enum Expression {
 
     // Vector
     Vector {
-        backing: AlVec<Box<Expression>>,
+        backing: Vec<Box<Expression>>,
         size: u8,
     },
 
     // Matrix
     Matrix {
-        backing: AlVec<Box<Expression>>,
+        backing: Vec<Box<Expression>>,
         shape: (u8, u8),
     },
 
@@ -226,9 +224,9 @@ pub enum Expression {
     Modulus(Box<Self>, Box<Self>),
 
     //n-ary operators
-    Function { //TODO: make smaller somehow?
-        name: String<8>,
-        args: Vec<Box<Self>, 8>,
+    Function {
+        name: String,
+        args: Vec<Box<Self>>,
     },
 }
 
@@ -492,7 +490,7 @@ impl Expression {
                     let mut args = Vec::new();
 
                     for arg in a.clone() {
-                        args.push(Box::new(arg.conversion()(&map).0)).unwrap(); //vec overflow is impossible here
+                        args.push(Box::new(arg.conversion()(&map).0)); //vec overflow is impossible here
                     }
                     
                     Expression::Function { name: n.clone(), args }

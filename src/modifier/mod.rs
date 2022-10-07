@@ -15,8 +15,7 @@ pub mod adaptable_modifier;
 
 #[cfg(test)]
 mod tests {
-    use core::str::FromStr;
-    use alloc::{vec, boxed::Box};
+    use alloc::{vec, boxed::Box, string::ToString};
 
     use libm::sinf;
 
@@ -68,7 +67,7 @@ mod tests {
     #[test]
     fn test_modifier_approximate() {
         let expr = Expression::Function {
-            name: heapless::String::from_str("sin").unwrap(),
+            name: "sin".to_string(),
             args: vec![Box::new(Expression::Atom(
                 Atom::Numeric(
                     Numeric::Decimal(20.0)

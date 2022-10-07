@@ -1,6 +1,4 @@
-use core::str::FromStr;
-
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec::Vec, string::ToString};
 
 use nom::{
     IResult,
@@ -80,7 +78,7 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
             space0,
         ),
         |(name, arg_list)| Expression::Function {
-            name: heapless::String::from_str(name).unwrap(),
+            name: name.to_string(),
             args: arg_list.into_iter().map(|arg| Box::new(arg)).collect(),
         }
     )(input)
@@ -242,9 +240,7 @@ fn parse_binary_op(operator_pair: (char, Expression), expr1: Expression) -> Expr
 
 #[cfg(test)]
 mod tests {
-    use core::str::FromStr;
-
-    use alloc::{boxed::Box, vec};
+    use alloc::{boxed::Box, vec, string::ToString};
 
     use super::parse;
     use crate::expression::expression_tree::*;
@@ -318,7 +314,7 @@ mod tests {
     fn test_function() {
         assert_eq!(parse("sin(1 + -2)"),
             Expression::Function {
-                name: heapless::String::from_str("sin").unwrap(),
+                name: "sin".to_string(),
                 args: vec![
                     Box::new(Expression::Add(
                         Box::new(Expression::Atom(
@@ -343,7 +339,7 @@ mod tests {
     fn test_multiple_arguments() {
         assert_eq!(parse("normcdf(0, 1, 2.5, x)"),
             Expression::Function {
-                name: heapless::String::from_str("normcdf").unwrap(),
+                name: "normcdf".to_string(),
                 args: vec![
                     Box::new(Expression::Atom(
                         Atom::Numeric(
@@ -378,7 +374,7 @@ mod tests {
                     )
                 )),
                 Box::new(Expression::Function {
-                    name: heapless::String::from_str("log").unwrap(),
+                    name: "log".to_string(),
                     args: vec![
                         Box::new(Expression::Atom(
                             Atom::Numeric(
@@ -386,7 +382,7 @@ mod tests {
                             )
                         )),
                         Box::new(Expression::Function {
-                            name: heapless::String::from_str("sin").unwrap(),
+                            name: "sin".to_string(),
                             args: vec![
                                 Box::new(Expression::Atom(
                                     Atom::Variable('x')
@@ -826,7 +822,7 @@ mod tests {
                         ),
                         Box::new(
                             Expression::Function {
-                                name: heapless::String::from_str("cos").unwrap(),
+                                name: "cos".to_string(),
                                 args: vec![
                                     Box::new(
                                         variable_atom!('t')
@@ -841,7 +837,7 @@ mod tests {
                         ),
                         Box::new(
                             Expression::Function {
-                                name: heapless::String::from_str("sin").unwrap(),
+                                name: "sin".to_string(),
                                 args: vec![
                                     Box::new(
                                         variable_atom!('t')
@@ -869,7 +865,7 @@ mod tests {
         assert_eq!(
             parse("dot(<1, 2, 3>, <4, 5, 6>)"),
             Expression::Function {
-                name: heapless::String::from_str("dot").unwrap(),
+                name: "dot".to_string(),
                 args: vec![
                     Box::new(
                         Expression::Vector {
@@ -1000,7 +996,7 @@ mod tests {
                         Box::new(integer_atom!(8)),
                     )),
                     Box::new(Expression::Function {
-                        name: heapless::String::from_str("cos").unwrap(),
+                        name: "cos".to_string(),
                         args: vec![
                             Box::new(variable_atom!('x'))
                         ].into_iter().collect(),
@@ -1016,7 +1012,7 @@ mod tests {
         assert_eq!(
             parse("T([1, 2; 3, 4])"),
             Expression::Function {
-                name: heapless::String::from_str("T").unwrap(),
+                name: "T".to_string(),
                 args: vec![
                     Box::new(
                         Expression::Matrix {

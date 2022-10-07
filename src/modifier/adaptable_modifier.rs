@@ -712,11 +712,11 @@ mod tests {
 
     #[test]
     fn test_adaptable_addition_mutable() {
-        let mut modifier1 = AdaptableModifier::from_str_list(vec![
+        let modifier1 = AdaptableModifier::from_str_list(vec![
             ("_*1 - _*2", "_*1 + -_*2"),
         ]);
 
-        let mut modifier2 = AdaptableModifier::from_str_list(vec![
+        let modifier2 = AdaptableModifier::from_str_list(vec![
             ("_*1 / _*2", "_*1 * (_*2 ^ -1)"),
         ]);
 
