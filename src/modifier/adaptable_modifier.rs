@@ -81,6 +81,7 @@ pub type ModifierFunction = Box<dyn Fn(&LinearMap<Atom, Expression, 8>) -> (Expr
 pub struct AdaptableModifier {
     //8 here is a magic number: it's the max number of arguments that can be passed to a function
     search_tree: MultiKeyBinarySearchTree<Expression, ModifierFunction>,
+    //because modificiation is so repetitive, we can cache the boolean result of modification, to skip false results
     memoizing_map: IndexMap<Expression, bool>,
 }
 
@@ -148,8 +149,8 @@ impl AdaptableModifier {
 impl ModifierImmutable for AdaptableModifier {
     fn modify_immut(&self, expression: &mut Expression) -> bool {
         if let Some(result) = self.memoizing_map.get(expression) {
-            if *result {
-                return true;
+            if !*result {
+                return false;
             }
         }
 
@@ -197,7 +198,7 @@ impl ModifierImmutable for AdaptableModifier {
             }
         }
 
-        let mut rule_mod = false;
+        let mut rule_mod;
         for rule in self.get_rule(expression) {
             (*expression, rule_mod) =
                 rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
@@ -214,8 +215,8 @@ impl ModifierImmutable for AdaptableModifier {
 impl ModifierMutable for AdaptableModifier {
     fn modify_mut(&mut self, expression: &mut Expression) -> bool {
         if let Some(result) = self.memoizing_map.get(expression) {
-            if *result {
-                return true;
+            if !*result {
+                return false;
             }
         }
 
@@ -264,7 +265,7 @@ impl ModifierMutable for AdaptableModifier {
             }
         }
 
-        let mut rule_mod = false;
+        let mut rule_mod;
         for rule in self.get_rule(expression) {
             (*expression, rule_mod) =
                 rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
@@ -816,5 +817,27 @@ mod tests {
         modifier.modify_mut(&mut expr2);
 
         assert_eq!(expr2, expected_expr2);
+    }
+
+    #[test]
+    fn test_adaptable_mutable_comparison() {
+        let modifier1 = AdaptableModifier::from_str_list(vec![("_*1 + _F1", "_*1 + 5")]);
+
+        let mut modifier2 = AdaptableModifier::from_str_list(vec![("_*1 + _F1", "_*1 + 5")]);
+
+        let expr =
+            Expression::from_str("5 + cos(10)+ cos(1)+ cos(10)+ cos(5)+ cos(10)+ cos(10)+ cos(10)")
+                .unwrap();
+        let expected_expr = Expression::from_str("5 + 5 + 5 + 5 + 5 + 5 + 5 + 5").unwrap();
+
+        let mut expr_immut = expr.clone();
+        modifier1.modify_immut(&mut expr_immut);
+
+        assert_eq!(expr_immut, expected_expr);
+
+        let mut expr_mut = expr.clone();
+        modifier2.modify_mut(&mut expr_mut);
+
+        assert_eq!(expr_mut, expected_expr);
     }
 }
