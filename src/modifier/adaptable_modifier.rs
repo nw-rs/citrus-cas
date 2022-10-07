@@ -446,4 +446,44 @@ mod tests {
 
         assert_eq!(expr1, expected_expr1);
     }
+
+    #[test]
+    fn test_adaptable_vector() {
+        let modifier = AdaptableModifier::from_str_list(vec![
+            ("_V1 - _V2", "_V1 + -_V2"),
+            ("_V1 - <1, 2>", "50")
+        ]);
+
+        let mut expr1 = Expression::from_str("<1, 2, 3, 4> - <1, 5, 7>").unwrap();
+        let expected_expr1 = Expression::from_str("<1, 2, 3, 4> + -<1, 5, 7>").unwrap();
+        modifier.modify(&mut expr1);
+
+        assert_eq!(expr1, expected_expr1);
+
+        let mut expr2 = Expression::from_str("<1, 2, 3, 4> - <1, 2>").unwrap();
+        let expected_expr2 = Expression::from_str("50").unwrap();
+        modifier.modify(&mut expr2);
+
+        assert_eq!(expr2, expected_expr2);
+    }
+
+    #[test]
+    fn test_adaptable_matrix() {
+        let modifier = AdaptableModifier::from_str_list(vec![
+            ("_M1 - _M2", "_M1 + -_M2"),
+            ("_M1 - [1; 3]", "50")
+        ]);
+
+        let mut expr1 = Expression::from_str("[1, 2; 3, 4] - [1, 5; 6, 7]").unwrap();
+        let expected_expr1 = Expression::from_str("[1, 2; 3, 4] + -[1, 5; 6, 7]").unwrap();
+        modifier.modify(&mut expr1);
+
+        assert_eq!(expr1, expected_expr1);
+
+        let mut expr2 = Expression::from_str("[1, 2; 3, 4] - [1; 3]").unwrap();
+        let expected_expr2 = Expression::from_str("50").unwrap();
+        modifier.modify(&mut expr2);
+
+        assert_eq!(expr2, expected_expr2);
+    }
 }

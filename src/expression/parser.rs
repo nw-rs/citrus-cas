@@ -104,7 +104,7 @@ fn parse_vector(input: &str) -> IResult<&str, Expression> {
             space0
         ), |vector| Expression::Vector {
             size: vector.len() as u8,
-            backing: vector,
+            backing: vector.into_iter().map(|arg| Box::new(arg)).collect(),
         }
     )(input)
 }
@@ -130,7 +130,7 @@ fn parse_matrix(input: &str) -> IResult<&str, Expression> {
             let mut row_count = flatten_matrix.len() as u8;
             let mut col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
 
-            let backing: Vec<Expression> = flatten_matrix.into_iter().flatten().collect();
+            let backing = flatten_matrix.into_iter().flatten().map(|a| Box::new(a)).collect();
             Expression::Matrix {
                 backing,
                 shape: (row_count, col_count),
@@ -725,9 +725,9 @@ mod tests {
             parse("<1, 2, 3>"),
             Expression::Vector {
                 backing: vec![
-                    integer_atom!(1),
-                    integer_atom!(2),
-                    integer_atom!(3),
+                    Box::new(integer_atom!(1)),
+                    Box::new(integer_atom!(2)),
+                    Box::new(integer_atom!(3)),
                 ],
                 size: 3 as u8,
             }
@@ -745,9 +745,9 @@ mod tests {
                 Box::new(
                     Expression::Vector {
                         backing: vec![
-                            integer_atom!(2),
-                            integer_atom!(3),
-                            integer_atom!(4),
+                            Box::new(integer_atom!(2)),
+                            Box::new(integer_atom!(3)),
+                            Box::new(integer_atom!(4)),
                         ],
                         size: 3 as u8,
                     }
@@ -762,46 +762,46 @@ mod tests {
             parse("<1 + 2, 3 - 4, 5 * 6, 7 / 8, 9 % 10>"),
             Expression::Vector {
                 backing: vec![
-                    Expression::Add(
+                    Box::new(Expression::Add(
                         Box::new(
                             integer_atom!(1)
                         ),
                         Box::new(
                             integer_atom!(2)
                         )
-                    ),
-                    Expression::Subtract(
+                    )),
+                    Box::new(Expression::Subtract(
                         Box::new(
                             integer_atom!(3)
                         ),
                         Box::new(
                             integer_atom!(4)
                         )
-                    ),
-                    Expression::Multiply(
+                    )),
+                    Box::new(Expression::Multiply(
                         Box::new(
                             integer_atom!(5)
                         ),
                         Box::new(
                             integer_atom!(6)
                         )
-                    ),
-                    Expression::Divide(
+                    )),
+                    Box::new(Expression::Divide(
                         Box::new(
                             integer_atom!(7)
                         ),
                         Box::new(
                             integer_atom!(8)
                         )
-                    ),
-                    Expression::Modulus(
+                    )),
+                    Box::new(Expression::Modulus(
                         Box::new(
                             integer_atom!(9)
                         ),
                         Box::new(
                             integer_atom!(10)
                         )
-                    ),
+                    )),
                 ],
                 size: 5 as u8,
             }
@@ -820,7 +820,7 @@ mod tests {
             parse("<r*cos(t), r*sin(t), z*t>"),
             Expression::Vector {
                 backing: vec![
-                    Expression::Multiply(
+                    Box::new(Expression::Multiply(
                         Box::new(
                             variable_atom!('r')
                         ),
@@ -834,8 +834,8 @@ mod tests {
                                 ].into_iter().collect()
                             }
                         )
-                    ),
-                    Expression::Multiply(
+                    )),
+                    Box::new(Expression::Multiply(
                         Box::new(
                             variable_atom!('r')
                         ),
@@ -849,15 +849,15 @@ mod tests {
                                 ].into_iter().collect()
                             }
                         )
-                    ),
-                    Expression::Multiply(
+                    )),
+                    Box::new(Expression::Multiply(
                         Box::new(
                             variable_atom!('z')
                         ),
                         Box::new(
                             variable_atom!('t')
                         )
-                    )
+                    ))
                 ],
                 size: 3 as u8,
             }
@@ -874,9 +874,9 @@ mod tests {
                     Box::new(
                         Expression::Vector {
                             backing: vec![
-                                integer_atom!(1),
-                                integer_atom!(2),
-                                integer_atom!(3),
+                                Box::new(integer_atom!(1)),
+                                Box::new(integer_atom!(2)),
+                                Box::new(integer_atom!(3)),
                             ],
                             size: 3 as u8,
                         }
@@ -884,9 +884,9 @@ mod tests {
                     Box::new(
                         Expression::Vector {
                             backing: vec![
-                                integer_atom!(4),
-                                integer_atom!(5),
-                                integer_atom!(6),
+                                Box::new(integer_atom!(4)),
+                                Box::new(integer_atom!(5)),
+                                Box::new(integer_atom!(6)),
                             ],
                             size: 3 as u8,
                         }
@@ -902,10 +902,10 @@ mod tests {
             parse("[1, 2; 3, 4]"),
             Expression::Matrix {
                 backing: vec![
-                    integer_atom!(1),
-                    integer_atom!(2),
-                    integer_atom!(3),
-                    integer_atom!(4),
+                    Box::new(integer_atom!(1)),
+                    Box::new(integer_atom!(2)),
+                    Box::new(integer_atom!(3)),
+                    Box::new(integer_atom!(4)),
                 ],
                 shape: (2, 2),
             }
@@ -918,12 +918,12 @@ mod tests {
             parse("[1, 2, 3; 4, 5, 6]"),
             Expression::Matrix {
                 backing: vec![
-                    integer_atom!(1),
-                    integer_atom!(2),
-                    integer_atom!(3),
-                    integer_atom!(4),
-                    integer_atom!(5),
-                    integer_atom!(6),
+                    Box::new(integer_atom!(1)),
+                    Box::new(integer_atom!(2)),
+                    Box::new(integer_atom!(3)),
+                    Box::new(integer_atom!(4)),
+                    Box::new(integer_atom!(5)),
+                    Box::new(integer_atom!(6)),
                 ],
                 shape: (2, 3),
             }
@@ -936,12 +936,12 @@ mod tests {
             parse("[1, 2; 3, 4; 5, 6]"),
             Expression::Matrix {
                 backing: vec![
-                    integer_atom!(1),
-                    integer_atom!(2),
-                    integer_atom!(3),
-                    integer_atom!(4),
-                    integer_atom!(5),
-                    integer_atom!(6),
+                    Box::new(integer_atom!(1)),
+                    Box::new(integer_atom!(2)),
+                    Box::new(integer_atom!(3)),
+                    Box::new(integer_atom!(4)),
+                    Box::new(integer_atom!(5)),
+                    Box::new(integer_atom!(6)),
                 ],
                 shape: (3, 2),
             }
@@ -956,10 +956,10 @@ mod tests {
                 Box::new(integer_atom!(1)),
                 Box::new(Expression::Matrix {
                     backing: vec![
-                        integer_atom!(2),
-                        integer_atom!(3),
-                        integer_atom!(4),
-                        integer_atom!(5),
+                        Box::new(integer_atom!(2)),
+                        Box::new(integer_atom!(3)),
+                        Box::new(integer_atom!(4)),
+                        Box::new(integer_atom!(5)),
                     ],
                     shape: (2, 2),
                 })
@@ -973,7 +973,7 @@ mod tests {
             parse("[1 + 2 - 3, 4 * 5 / 6; 7 % 8, cos(x)]"),
             Expression::Matrix {
                 backing: vec![
-                    Expression::Subtract(
+                    Box::new(Expression::Subtract(
                         Box::new(
                             Expression::Add(
                                 Box::new(integer_atom!(1)),
@@ -983,8 +983,8 @@ mod tests {
                         Box::new(
                             integer_atom!(3),
                         ),
-                    ),
-                    Expression::Divide(
+                    )),
+                    Box::new(Expression::Divide(
                         Box::new(
                             Expression::Multiply(
                                 Box::new(integer_atom!(4)),
@@ -994,17 +994,17 @@ mod tests {
                         Box::new(
                             integer_atom!(6),
                         ),
-                    ),
-                    Expression::Modulus(
+                    )),
+                    Box::new(Expression::Modulus(
                         Box::new(integer_atom!(7)),
                         Box::new(integer_atom!(8)),
-                    ),
-                    Expression::Function {
+                    )),
+                    Box::new(Expression::Function {
                         name: heapless::String::from_str("cos").unwrap(),
                         args: vec![
                             Box::new(variable_atom!('x'))
                         ].into_iter().collect(),
-                    }
+                    })
                 ],
                 shape: (2, 2),
             }
@@ -1021,10 +1021,10 @@ mod tests {
                     Box::new(
                         Expression::Matrix {
                             backing: vec![
-                                integer_atom!(1),
-                                integer_atom!(2),
-                                integer_atom!(3),
-                                integer_atom!(4),
+                                Box::new(integer_atom!(1)),
+                                Box::new(integer_atom!(2)),
+                                Box::new(integer_atom!(3)),
+                                Box::new(integer_atom!(4)),
                             ],
                             shape: (2, 2),
                         }
@@ -1040,10 +1040,10 @@ mod tests {
             parse("([1, 2; 3, 4])"),
             Expression::Matrix {
                 backing: vec![
-                    integer_atom!(1),
-                    integer_atom!(2),
-                    integer_atom!(3),
-                    integer_atom!(4),
+                    Box::new(integer_atom!(1)),
+                    Box::new(integer_atom!(2)),
+                    Box::new(integer_atom!(3)),
+                    Box::new(integer_atom!(4)),
                 ],
                 shape: (2, 2)
             }
@@ -1056,9 +1056,9 @@ mod tests {
             parse("(<1, 2, 3>)"),
             Expression::Vector {
                 backing: vec![
-                    integer_atom!(1),
-                    integer_atom!(2),
-                    integer_atom!(3),
+                    Box::new(integer_atom!(1)),
+                    Box::new(integer_atom!(2)),
+                    Box::new(integer_atom!(3)),
                 ],
                 size: 3,
             }
