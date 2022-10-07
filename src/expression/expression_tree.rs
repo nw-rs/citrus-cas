@@ -29,7 +29,7 @@ impl Hash for Numeric {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Numeric::Integer(i) => i.hash(state),
-            Numeric::Decimal(f) => f.to_bits().hash(state),
+            Numeric::Decimal(f) => f.to_bits().hash(state), //rough workaround
             Numeric::Fraction(n, d) => {
                 n.hash(state);
                 d.hash(state);
@@ -200,18 +200,6 @@ pub enum Expression {
     //atoms
     Atom(Atom),
 
-    // Vector
-    Vector {
-        backing: Vec<Box<Expression>>,
-        size: u8,
-    },
-
-    // Matrix
-    Matrix {
-        backing: Vec<Box<Expression>>,
-        shape: (u8, u8),
-    },
-
     //unary operators
     Negate(Box<Self>),
     Factorial(Box<Self>),
@@ -225,10 +213,18 @@ pub enum Expression {
     Power(Box<Self>, Box<Self>),
     Modulus(Box<Self>, Box<Self>),
 
-    //n-ary operators
+    //dynamic operators
     Function {
         name: String,
         args: Vec<Box<Self>>,
+    },
+    Vector {
+        backing: Vec<Box<Self>>,
+        size: u8,
+    },
+    Matrix {
+        backing: Vec<Box<Self>>,
+        shape: (u8, u8),
     },
 }
 
@@ -635,7 +631,7 @@ impl Expression {
                     let mut map_n = map;
                     map_n
                         .insert(*a, self.clone())
-                        .map_err(|_| "too many arguments")
+                        .map_err(|_| "too many escapes")
                         .unwrap();
                     map_n
                 }
