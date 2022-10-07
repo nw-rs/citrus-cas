@@ -108,13 +108,13 @@ impl AdaptableModifier {
             Some(list) => {
                 let (mut level, mut new_list) = (8, Vec::new()); //8 is mod magic here
                 list.iter().for_each(|pair| {
-                    if let Some(l) = expr.level_eq(&pair.0) {
-                        if l.0 == level {
+                    if let Some(l) = expr.level_eq(&pair.0, &mut LinearMap::new()) {
+                        if l == level {
                             new_list.push(pair);
-                        } else if l.0 < level {
+                        } else if l < level {
                             new_list.clear();
                             new_list.push(pair);
-                            level = l.0;
+                            level = l;
                         }
                     }
                 });
@@ -335,7 +335,6 @@ mod tests {
 
         let mut expr2 = Expression::from_str("1 - 2").unwrap();
         let expected_expr2 = Expression::from_str("1 + -2").unwrap();
-        assert_eq!(expr2.level_eq(&"_*1 - 5".parse::<Expression>().unwrap()), None);
 
         modifier.modify(&mut expr2);
 

@@ -264,78 +264,103 @@ impl Expression {
     }
 
     //returns the number of escapes in the other expression, or None if the expressions are not equal
-    pub fn level_eq(&self, other: &Self) -> Option<(u8, LinearMap<Atom, Expression, 8>)> {
+    pub fn level_eq(&self, other: &Self, map: &mut LinearMap<Atom, Expression, 8>) -> Option<u8> {
         match (self, other) {
             (e, Expression::Atom(a)) => match a {
                 Atom::Escape(escape, _) => match escape {
                     'A' => match e {
                         Expression::Atom(a) => {
-                            let mut map = LinearMap::new();
-                            map.insert(a.clone(), e.clone());
-                            Some((1, map))
+                            match map.get(a) {
+                                Some(expr) => if expr == e {
+                                    Some(1)
+                                } else {
+                                    None
+                                },
+                                None => {
+                                    map.insert(*a, e.clone());
+                                    Some(1)
+                                }
+                            }
                         },
                         _ => None,
                     }
                     'F' => match e {
                         Expression::Function { name: _, args: _ } => {
-                            let mut map = LinearMap::new();
-                            map.insert(a.clone(), e.clone());
-                            Some((1, map))
+                            match map.get(a) {
+                                Some(expr) => if expr == e {
+                                    Some(1)
+                                } else {
+                                    None
+                                },
+                                None => {
+                                    map.insert(*a, e.clone());
+                                    Some(1)
+                                }
+                            }
                         },
                         _ => None,
                     }
                     'V' => match e {
                         Expression::Vector { backing: _, size: _ } => {
-                            let mut map = LinearMap::new();
-                            map.insert(a.clone(), e.clone());
-                            Some((1, map))
+                            match map.get(a) {
+                                Some(expr) => if expr == e {
+                                    Some(1)
+                                } else {
+                                    None
+                                },
+                                None => {
+                                    map.insert(*a, e.clone());
+                                    Some(1)
+                                }
+                            }
                         },
                         _ => None,
                     }
                     'M' => match e {
                         Expression::Matrix { backing: _, shape: _ } => {
-                            let mut map = LinearMap::new();
-                            map.insert(a.clone(), e.clone());
-                            Some((1, map))
+                            match map.get(a) {
+                                Some(expr) => if expr == e {
+                                    Some(1)
+                                } else {
+                                    None
+                                },
+                                None => {
+                                    map.insert(*a, e.clone());
+                                    Some(1)
+                                }
+                            }
                         },
                         _ => None,
                     }
                     '*' => {
-                        let mut map = LinearMap::new();
-                        map.insert(a.clone(), e.clone());
-                        Some((1, map))
+                        match map.get(a) {
+                            Some(expr) => if expr == e {
+                                Some(1)
+                            } else {
+                                None
+                            },
+                            None => {
+                                map.insert(*a, e.clone());
+                                Some(1)
+                            }
+                        }
                     },
                     _ => unimplemented!(),
                 }
-                _ => if self == other { Some((0, LinearMap::new())) } else { None },
+                _ => if self == other { Some(0) } else { None },
             },
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => {
                 if n1 == n2 {
                     let mut level = 0;
-                    let mut map = LinearMap::new();
 
                     for (arg1, arg2) in a1.iter().zip(a2.iter()) {
-                        match arg1.level_eq(arg2) {
-                            Some(l) => {
-                                level += l.0;
-                                l.1.iter().for_each(|(k, v)| {
-                                    if let Some(value) = map.get(k) {
-                                        if value != v {
-                                            level=u8::MAX;
-                                        }
-                                    } else {
-                                        map.insert(k.clone(), v.clone());
-                                    }
-                                });
-                                if level == u8::MAX {
-                                    return None;
-                                }
-                            },
+                        match arg1.level_eq(arg2, map) {
+                            Some(l) => level += l,
                             None => return None,
-                        }
+                        };
                     }
 
-                    Some((level, map))
+                    Some(level)
                 } else {
                     None
                 }
@@ -343,30 +368,15 @@ impl Expression {
             (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => {
                 if s1 == s2 {
                     let mut level = 0;
-                    let mut map = LinearMap::new();
 
                     for (expr1, expr2) in b1.iter().zip(b2.iter()) {
-                        match expr1.level_eq(expr2) {
-                            Some(l) => {
-                                level += l.0;
-                                l.1.iter().for_each(|(k, v)| {
-                                    if let Some(value) = map.get(k) {
-                                        if value != v {
-                                            level=u8::MAX;
-                                        }
-                                    } else {
-                                        map.insert(k.clone(), v.clone());
-                                    }
-                                });
-                                if level == u8::MAX {
-                                    return None;
-                                }
-                            },
+                        match expr1.level_eq(expr2, map) {
+                            Some(l) => level += l,
                             None => return None,
-                        }
+                        };
                     }
 
-                    Some((level, map))
+                    Some(level)
                 } else {
                     None
                 }
@@ -374,30 +384,15 @@ impl Expression {
             (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => {
                 if s1 == s2 {
                     let mut level = 0;
-                    let mut map = LinearMap::new();
 
                     for (expr1, expr2) in b1.iter().zip(b2.iter()) {
-                        match expr1.level_eq(expr2) {
-                            Some(l) => {
-                                level += l.0;
-                                l.1.iter().for_each(|(k, v)| {
-                                    if let Some(value) = map.get(k) {
-                                        if value != v {
-                                            level=u8::MAX;
-                                        }
-                                    } else {
-                                        map.insert(k.clone(), v.clone());
-                                    }
-                                });
-                                if level == u8::MAX {
-                                    return None;
-                                }
-                            },
+                        match expr1.level_eq(expr2, map) {
+                            Some(l) => level += l,
                             None => return None,
-                        }
+                        };
                     }
 
-                    Some((level, map))
+                    Some(level)
                 } else {
                     None
                 }
@@ -405,7 +400,7 @@ impl Expression {
             (Expression::Negate(e1), Expression::Negate(e2)) |
             (Expression::Factorial(e1), Expression::Factorial(e2)) |
             (Expression::Percent(e1), Expression::Percent(e2)) => {
-                e1.level_eq(e2)
+                e1.level_eq(e2, map)
             },
             (Expression::Add(e11, e12), Expression::Add(e21, e22)) |
             (Expression::Subtract(e11, e12), Expression::Subtract(e21, e22)) |
@@ -413,27 +408,11 @@ impl Expression {
             (Expression::Divide(e11, e12), Expression::Divide(e21, e22)) |
             (Expression::Power(e11, e12), Expression::Power(e21, e22)) |
             (Expression::Modulus(e11, e12), Expression::Modulus(e21, e22)) => {
-                let level1 = e11.level_eq(e21);
-                let level2 = e12.level_eq(e22);
+                let level1 = e11.level_eq(e21, map);
+                let level2 = e12.level_eq(e22, map);
+
                 match (level1, level2) {
-                    (Some(l1), Some(l2)) => {
-                        let mut level = l1.0 + l2.0;
-                        let mut map = l1.1;
-                        l2.1.iter().for_each(|(k, v)| {
-                            if let Some(value) = map.get(k) {
-                                if value != v {
-                                    level=u8::MAX;
-                                }
-                            } else {
-                                map.insert(k.clone(), v.clone());
-                            }
-                        });
-                        if level == u8::MAX {
-                            None
-                        } else {
-                            Some((level, map))
-                        }
-                    },
+                    (Some(l1), Some(l2)) => Some(l1 + l2),
                     _ => None,
                 }
             }
