@@ -1,9 +1,19 @@
-use core::{fmt, str::FromStr, cmp::Ordering, ops::{Add, Sub, Mul, Div}, hash::{Hash, Hasher}};
-use alloc::{boxed::Box, vec::Vec, string::String};
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{
+    cmp::Ordering,
+    fmt,
+    hash::{Hash, Hasher},
+    ops::{Add, Div, Mul, Sub},
+    str::FromStr,
+};
 
 use heapless::LinearMap;
 
-use crate::{expression::parser::parse, Error, modifier::{ModifierImmutable, ModifierMutable}};
+use crate::{
+    expression::parser::parse,
+    modifier::{ModifierImmutable, ModifierMutable, adaptable_modifier::ModifierFunction},
+    Error,
+};
 
 //Numeric: representation of any numeric value
 #[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
@@ -104,12 +114,8 @@ impl Mul for Numeric {
             (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
                 Numeric::Fraction((a * d) + (b * c), b * d)
             }
-            (Numeric::Integer(a), Numeric::Fraction(b, c)) => {
-                Numeric::Fraction((a * c) + b, c)
-            }
-            (Numeric::Fraction(a, b), Numeric::Integer(c)) => {
-                Numeric::Fraction(a + (b * c), b)
-            }
+            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction((a * c) + b, c),
+            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a + (b * c), b),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
                 Numeric::Decimal(a * (b as f32 / c as f32))
             }
@@ -132,12 +138,8 @@ impl Div for Numeric {
             (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
                 Numeric::Fraction((a * d) - (b * c), b * d)
             }
-            (Numeric::Integer(a), Numeric::Fraction(b, c)) => {
-                Numeric::Fraction((a * c) - b, c)
-            }
-            (Numeric::Fraction(a, b), Numeric::Integer(c)) => {
-                Numeric::Fraction(a - (b * c), b)
-            }
+            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction((a * c) - b, c),
+            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a - (b * c), b),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
                 Numeric::Decimal(a / (b as f32 / c as f32))
             }
@@ -148,9 +150,9 @@ impl Div for Numeric {
     }
 }
 
-impl Into<f32> for Numeric {
-    fn into(self) -> f32 {
-        match self {
+impl From<Numeric> for f32 {
+    fn from(n: Numeric) -> f32 {
+        match n {
             Numeric::Integer(i) => i as f32,
             Numeric::Decimal(d) => d,
             Numeric::Fraction(n, d) => n as f32 / d as f32,
@@ -173,13 +175,13 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    //escapes indicate where something in an expression should be replaced: 
+    //escapes indicate where something in an expression should be replaced:
     // - A for atoms
     // - F for functions
     // - V for vectors
     // - M for matrices
     // - * for everything
-    Escape(char, u8), 
+    Escape(char, u8),
 }
 
 impl fmt::Display for Atom {
@@ -241,7 +243,11 @@ impl Expression {
     }
 
     //simplifies, then uses the evaluation modifier on the tree a max of L times, with a modifier that cannot be mutated
-    pub fn evaluate_im<E: ModifierImmutable, S: ModifierImmutable, const L: usize>(&self, evaluator: &E, simplifier: &S) -> Expression {
+    pub fn evaluate_im<E: ModifierImmutable, S: ModifierImmutable, const L: usize>(
+        &self,
+        evaluator: &E,
+        simplifier: &S,
+    ) -> Expression {
         let mut expr = self.clone();
 
         for _ in 0..L {
@@ -255,7 +261,17 @@ impl Expression {
     }
 
     //evaluates, then uses the approximation modifier on the tree a max of L times, with a modifier that cannot be mutated
-    pub fn approximate_im<A: ModifierImmutable, E: ModifierImmutable, S: ModifierImmutable, const L: usize>(&self, approximator: &A, evaluator: &E, simplifier: &S) -> Result<Numeric, ()> {
+    pub fn approximate_im<
+        A: ModifierImmutable,
+        E: ModifierImmutable,
+        S: ModifierImmutable,
+        const L: usize,
+    >(
+        &self,
+        approximator: &A,
+        evaluator: &E,
+        simplifier: &S,
+    ) -> Result<Numeric, crate::Error> {
         let mut expr = self.clone();
 
         for _ in 0..L {
@@ -266,11 +282,8 @@ impl Expression {
         }
 
         match expr {
-            Expression::Atom(a) => match a {
-                Atom::Numeric(n) => Ok(n),
-                _ => Err(()),
-            },
-            _ => Err(()),
+            Expression::Atom(Atom::Numeric(n)) => Ok(n),
+            _ => Err(Error::UndefinedSymbol),
         }
     }
 
@@ -284,7 +297,11 @@ impl Expression {
     }
 
     //simplifies, then uses the evaluation modifier on the tree a max of L times
-    pub fn evaluate<E: ModifierMutable, S: ModifierMutable, const L: usize>(&self, evaluator: &mut E, simplifier: &mut S) -> Expression {
+    pub fn evaluate<E: ModifierMutable, S: ModifierMutable, const L: usize>(
+        &self,
+        evaluator: &mut E,
+        simplifier: &mut S,
+    ) -> Expression {
         let mut expr = self.clone();
 
         for _ in 0..L {
@@ -298,7 +315,17 @@ impl Expression {
     }
 
     //evaluates, then uses the approximation modifier on the tree a max of L times
-    pub fn approximate<A: ModifierMutable, E: ModifierMutable, S: ModifierMutable, const L: usize>(&self, approximator: &mut A, evaluator: &mut E, simplifier: &mut S) -> Result<Numeric, ()> {
+    pub fn approximate<
+        A: ModifierMutable,
+        E: ModifierMutable,
+        S: ModifierMutable,
+        const L: usize,
+    >(
+        &self,
+        approximator: &mut A,
+        evaluator: &mut E,
+        simplifier: &mut S,
+    ) -> Result<Numeric, crate::Error> {
         let mut expr = self.clone();
 
         for _ in 0..L {
@@ -309,11 +336,8 @@ impl Expression {
         }
 
         match expr {
-            Expression::Atom(a) => match a {
-                Atom::Numeric(n) => Ok(n),
-                _ => Err(()),
-            },
-            _ => Err(()),
+            Expression::Atom(Atom::Numeric(n)) => Ok(n),
+            _ => Err(Error::UndefinedSymbol),
         }
     }
 
@@ -323,87 +347,112 @@ impl Expression {
             (e, Expression::Atom(a)) => match a {
                 Atom::Escape(escape, _) => match escape {
                     'A' => match e {
-                        Expression::Atom(a) => {
-                            match map.get(a) {
-                                Some(expr) => if expr == e {
+                        Expression::Atom(a) => match map.get(a) {
+                            Some(expr) => {
+                                if expr == e {
                                     Some(1)
                                 } else {
                                     None
-                                },
-                                None => {
-                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
-                                    Some(1)
                                 }
+                            }
+                            None => {
+                                map.insert(*a, e.clone())
+                                    .map_err(|(_, _)| "too many escapes")
+                                    .unwrap();
+                                Some(1)
                             }
                         },
                         _ => None,
-                    }
+                    },
                     'F' => match e {
-                        Expression::Function { name: _, args: _ } => {
-                            match map.get(a) {
-                                Some(expr) => if expr == e {
+                        Expression::Function { name: _, args: _ } => match map.get(a) {
+                            Some(expr) => {
+                                if expr == e {
                                     Some(1)
                                 } else {
                                     None
-                                },
-                                None => {
-                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
-                                    Some(1)
                                 }
+                            }
+                            None => {
+                                map.insert(*a, e.clone())
+                                    .map_err(|(_, _)| "too many escapes")
+                                    .unwrap();
+                                Some(1)
                             }
                         },
                         _ => None,
-                    }
+                    },
                     'V' => match e {
-                        Expression::Vector { backing: _, size: _ } => {
-                            match map.get(a) {
-                                Some(expr) => if expr == e {
+                        Expression::Vector {
+                            backing: _,
+                            size: _,
+                        } => match map.get(a) {
+                            Some(expr) => {
+                                if expr == e {
                                     Some(1)
                                 } else {
                                     None
-                                },
-                                None => {
-                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
-                                    Some(1)
                                 }
+                            }
+                            None => {
+                                map.insert(*a, e.clone())
+                                    .map_err(|(_, _)| "too many escapes")
+                                    .unwrap();
+                                Some(1)
                             }
                         },
                         _ => None,
-                    }
+                    },
                     'M' => match e {
-                        Expression::Matrix { backing: _, shape: _ } => {
-                            match map.get(a) {
-                                Some(expr) => if expr == e {
+                        Expression::Matrix {
+                            backing: _,
+                            shape: _,
+                        } => match map.get(a) {
+                            Some(expr) => {
+                                if expr == e {
                                     Some(1)
                                 } else {
                                     None
-                                },
-                                None => {
-                                    map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
-                                    Some(1)
                                 }
+                            }
+                            None => {
+                                map.insert(*a, e.clone())
+                                    .map_err(|(_, _)| "too many escapes")
+                                    .unwrap();
+                                Some(1)
                             }
                         },
                         _ => None,
-                    }
-                    '*' => {
-                        match map.get(a) {
-                            Some(expr) => if expr == e {
+                    },
+                    '*' => match map.get(a) {
+                        Some(expr) => {
+                            if expr == e {
                                 Some(1)
                             } else {
                                 None
-                            },
-                            None => {
-                                map.insert(*a, e.clone()).map_err(|(_, _)| "too many escapes").unwrap();
-                                Some(1)
                             }
+                        }
+                        None => {
+                            map.insert(*a, e.clone())
+                                .map_err(|(_, _)| "too many escapes")
+                                .unwrap();
+                            Some(1)
                         }
                     },
                     _ => unimplemented!(),
+                },
+                _ => {
+                    if self == other {
+                        Some(0)
+                    } else {
+                        None
+                    }
                 }
-                _ => if self == other { Some(0) } else { None },
             },
-            (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => {
+            (
+                Expression::Function { name: n1, args: a1 },
+                Expression::Function { name: n2, args: a2 },
+            ) => {
                 if n1 == n2 {
                     let mut level = 0;
 
@@ -419,7 +468,16 @@ impl Expression {
                     None
                 }
             }
-            (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => {
+            (
+                Expression::Vector {
+                    backing: b1,
+                    size: s1,
+                },
+                Expression::Vector {
+                    backing: b2,
+                    size: s2,
+                },
+            ) => {
                 if s1 == s2 {
                     let mut level = 0;
 
@@ -435,7 +493,16 @@ impl Expression {
                     None
                 }
             }
-            (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => {
+            (
+                Expression::Matrix {
+                    backing: b1,
+                    shape: s1,
+                },
+                Expression::Matrix {
+                    backing: b2,
+                    shape: s2,
+                },
+            ) => {
                 if s1 == s2 {
                     let mut level = 0;
 
@@ -451,17 +518,15 @@ impl Expression {
                     None
                 }
             }
-            (Expression::Negate(e1), Expression::Negate(e2)) |
-            (Expression::Factorial(e1), Expression::Factorial(e2)) |
-            (Expression::Percent(e1), Expression::Percent(e2)) => {
-                e1.level_eq(e2, map)
-            },
-            (Expression::Add(e11, e12), Expression::Add(e21, e22)) |
-            (Expression::Subtract(e11, e12), Expression::Subtract(e21, e22)) |
-            (Expression::Multiply(e11, e12), Expression::Multiply(e21, e22)) |
-            (Expression::Divide(e11, e12), Expression::Divide(e21, e22)) |
-            (Expression::Power(e11, e12), Expression::Power(e21, e22)) |
-            (Expression::Modulus(e11, e12), Expression::Modulus(e21, e22)) => {
+            (Expression::Negate(e1), Expression::Negate(e2))
+            | (Expression::Factorial(e1), Expression::Factorial(e2))
+            | (Expression::Percent(e1), Expression::Percent(e2)) => e1.level_eq(e2, map),
+            (Expression::Add(e11, e12), Expression::Add(e21, e22))
+            | (Expression::Subtract(e11, e12), Expression::Subtract(e21, e22))
+            | (Expression::Multiply(e11, e12), Expression::Multiply(e21, e22))
+            | (Expression::Divide(e11, e12), Expression::Divide(e21, e22))
+            | (Expression::Power(e11, e12), Expression::Power(e21, e22))
+            | (Expression::Modulus(e11, e12), Expression::Modulus(e21, e22)) => {
                 let level1 = e11.level_eq(e21, map);
                 let level2 = e12.level_eq(e22, map);
 
@@ -475,89 +540,117 @@ impl Expression {
     }
 
     //extracts a modification function from the given expression
-    pub fn conversion(self) -> Box<dyn Fn (&LinearMap<Atom, Expression, 8>) -> (Expression, bool)> {
+    pub fn conversion(self) -> ModifierFunction {
         Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
-            (match &self {
-                Expression::Atom(a) => match a {
-                    Atom::Escape(_, _) => {
-                         map.get(&a).unwrap().clone()
-                    }
-                    _ => {
-                        self.clone()
-                    }
-                }
-                Expression::Function { name: n, args: a } => {
-                    let mut args = Vec::new();
+            (
+                match &self {
+                    Expression::Atom(a) => match a {
+                        Atom::Escape(_, _) => map.get(a).unwrap().clone(),
+                        _ => self.clone(),
+                    },
+                    Expression::Function { name: n, args: a } => {
+                        let mut args = Vec::new();
 
-                    for arg in a.clone() {
-                        args.push(Box::new(arg.conversion()(&map).0)); //vec overflow is impossible here
-                    }
-                    
-                    Expression::Function { name: n.clone(), args }
-                }
-                Expression::Vector { backing: b, size: s } => {
-                    let mut backing = alloc::vec::Vec::new();
+                        for arg in a.clone() {
+                            args.push(Box::new(arg.conversion()(map).0)); //vec overflow is impossible here
+                        }
 
-                    for arg in b.clone() {
-                        backing.push(Box::new(arg.conversion()(&map).0));
+                        Expression::Function {
+                            name: n.clone(),
+                            args,
+                        }
                     }
-                    
-                    Expression::Vector { backing, size: s.clone() }
-                }
-                Expression::Matrix { backing: b, shape: s } => {
-                    let mut backing = alloc::vec::Vec::new();
+                    Expression::Vector {
+                        backing: b,
+                        size: s,
+                    } => {
+                        let mut backing = alloc::vec::Vec::new();
 
-                    for arg in b.clone() {
-                        backing.push(Box::new(arg.conversion()(&map).0));
+                        for arg in b.clone() {
+                            backing.push(Box::new(arg.conversion()(map).0));
+                        }
+
+                        Expression::Vector {
+                            backing,
+                            size: *s,
+                        }
                     }
-                    
-                    Expression::Matrix { backing, shape: s.clone() }
-                }
-                Expression::Negate(e) => {
-                    Expression::Negate(Box::new(e.clone().conversion()(&map).0))
-                }
-                Expression::Factorial(e) => {
-                    Expression::Factorial(Box::new(e.clone().conversion()(&map).0))
-                }
-                Expression::Percent(e) => {
-                    Expression::Percent(Box::new(e.clone().conversion()(&map).0))
-                }
-                Expression::Add(e1, e2) => {
-                    Expression::Add(Box::new(e1.clone().conversion()(&map).0), Box::new(e2.clone().conversion()(&map).0))
-                }
-                Expression::Subtract(e1, e2) => {
-                    Expression::Subtract(Box::new(e1.clone().conversion()(&map).0), Box::new(e2.clone().conversion()(&map).0))
-                }
-                Expression::Multiply(e1, e2) => {
-                    Expression::Multiply(Box::new(e1.clone().conversion()(&map).0), Box::new(e2.clone().conversion()(&map).0))
-                }
-                Expression::Divide(e1, e2) => {
-                    Expression::Divide(Box::new(e1.clone().conversion()(&map).0), Box::new(e2.clone().conversion()(&map).0))
-                }
-                Expression::Power(e1, e2) => {
-                    Expression::Power(Box::new(e1.clone().conversion()(&map).0), Box::new(e2.clone().conversion()(&map).0))
-                }
-                Expression::Modulus(e1, e2) => {
-                    Expression::Modulus(Box::new(e1.clone().conversion()(&map).0), Box::new(e2.clone().conversion()(&map).0))
-                }
-            }, true)},
-        )
+                    Expression::Matrix {
+                        backing: b,
+                        shape: s,
+                    } => {
+                        let mut backing = alloc::vec::Vec::new();
+
+                        for arg in b.clone() {
+                            backing.push(Box::new(arg.conversion()(map).0));
+                        }
+
+                        Expression::Matrix {
+                            backing,
+                            shape: *s,
+                        }
+                    }
+                    Expression::Negate(e) => {
+                        Expression::Negate(Box::new(e.clone().conversion()(map).0))
+                    }
+                    Expression::Factorial(e) => {
+                        Expression::Factorial(Box::new(e.clone().conversion()(map).0))
+                    }
+                    Expression::Percent(e) => {
+                        Expression::Percent(Box::new(e.clone().conversion()(map).0))
+                    }
+                    Expression::Add(e1, e2) => Expression::Add(
+                        Box::new(e1.clone().conversion()(map).0),
+                        Box::new(e2.clone().conversion()(map).0),
+                    ),
+                    Expression::Subtract(e1, e2) => Expression::Subtract(
+                        Box::new(e1.clone().conversion()(map).0),
+                        Box::new(e2.clone().conversion()(map).0),
+                    ),
+                    Expression::Multiply(e1, e2) => Expression::Multiply(
+                        Box::new(e1.clone().conversion()(map).0),
+                        Box::new(e2.clone().conversion()(map).0),
+                    ),
+                    Expression::Divide(e1, e2) => Expression::Divide(
+                        Box::new(e1.clone().conversion()(map).0),
+                        Box::new(e2.clone().conversion()(map).0),
+                    ),
+                    Expression::Power(e1, e2) => Expression::Power(
+                        Box::new(e1.clone().conversion()(map).0),
+                        Box::new(e2.clone().conversion()(map).0),
+                    ),
+                    Expression::Modulus(e1, e2) => Expression::Modulus(
+                        Box::new(e1.clone().conversion()(map).0),
+                        Box::new(e2.clone().conversion()(map).0),
+                    ),
+                },
+                true,
+            )
+        })
     }
 
     //uses a template expression to extract the sub-expressions from the given expression
-    pub fn extract_arguments(&self, template: &Expression, map: LinearMap<Atom, Expression, 8>) -> LinearMap<Atom, Expression, 8> {
+    pub fn extract_arguments(
+        &self,
+        template: &Expression,
+        map: LinearMap<Atom, Expression, 8>,
+    ) -> LinearMap<Atom, Expression, 8> {
         match (self, template) {
-            (_, Expression::Atom(a)) => {
-                match a {
-                    Atom::Escape(_, _) => {
-                        let mut map_n = map;
-                        map_n.insert(a.clone(), self.clone()).map_err(|_| "too many arguments").unwrap();
-                        map_n
-                    }
-                    _ => map
+            (_, Expression::Atom(a)) => match a {
+                Atom::Escape(_, _) => {
+                    let mut map_n = map;
+                    map_n
+                        .insert(*a, self.clone())
+                        .map_err(|_| "too many arguments")
+                        .unwrap();
+                    map_n
                 }
-            }
-            (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => {
+                _ => map,
+            },
+            (
+                Expression::Function { name: n1, args: a1 },
+                Expression::Function { name: n2, args: a2 },
+            ) => {
                 if n1 == n2 {
                     let mut map_n = map;
                     for (arg1, arg2) in a1.iter().zip(a2.iter()) {
@@ -568,7 +661,16 @@ impl Expression {
                     map
                 }
             }
-            (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => {
+            (
+                Expression::Vector {
+                    backing: b1,
+                    size: s1,
+                },
+                Expression::Vector {
+                    backing: b2,
+                    size: s2,
+                },
+            ) => {
                 if s1 == s2 {
                     let mut map_n = map;
                     for (arg1, arg2) in b1.iter().zip(b2.iter()) {
@@ -579,7 +681,16 @@ impl Expression {
                     map
                 }
             }
-            (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => {
+            (
+                Expression::Matrix {
+                    backing: b1,
+                    shape: s1,
+                },
+                Expression::Matrix {
+                    backing: b2,
+                    shape: s2,
+                },
+            ) => {
                 if s1 == s2 {
                     let mut map_n = map;
                     for (arg1, arg2) in b1.iter().zip(b2.iter()) {
@@ -590,17 +701,15 @@ impl Expression {
                     map
                 }
             }
-            (Expression::Negate(e1), Expression::Negate(e2)) |
-            (Expression::Factorial(e1), Expression::Factorial(e2)) |
-            (Expression::Percent(e1), Expression::Percent(e2)) => {
-                e1.extract_arguments(e2, map)
-            },
-            (Expression::Add(e11, e12), Expression::Add(e21, e22)) |
-            (Expression::Subtract(e11, e12), Expression::Subtract(e21, e22)) |
-            (Expression::Multiply(e11, e12), Expression::Multiply(e21, e22)) |
-            (Expression::Divide(e11, e12), Expression::Divide(e21, e22)) |
-            (Expression::Power(e11, e12), Expression::Power(e21, e22)) |
-            (Expression::Modulus(e11, e12), Expression::Modulus(e21, e22)) => {
+            (Expression::Negate(e1), Expression::Negate(e2))
+            | (Expression::Factorial(e1), Expression::Factorial(e2))
+            | (Expression::Percent(e1), Expression::Percent(e2)) => e1.extract_arguments(e2, map),
+            (Expression::Add(e11, e12), Expression::Add(e21, e22))
+            | (Expression::Subtract(e11, e12), Expression::Subtract(e21, e22))
+            | (Expression::Multiply(e11, e12), Expression::Multiply(e21, e22))
+            | (Expression::Divide(e11, e12), Expression::Divide(e21, e22))
+            | (Expression::Power(e11, e12), Expression::Power(e21, e22))
+            | (Expression::Modulus(e11, e12), Expression::Modulus(e21, e22)) => {
                 let map_n = e11.extract_arguments(e21, map);
                 e12.extract_arguments(e22, map_n)
             }
@@ -646,20 +755,39 @@ impl PartialOrd for Expression {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Expression::Atom(_), _) | (_, Expression::Atom(_)) => Some(Ordering::Equal),
-            (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => a1.partial_cmp(a2).and(n1.partial_cmp(n2)),
-            (Expression::Vector { backing: b1, size: s1 }, Expression::Vector { backing: b2, size: s2 }) => b1.partial_cmp(b2).and(s1.partial_cmp(s2)),
-            (Expression::Matrix { backing: b1, shape: s1 }, Expression::Matrix { backing: b2, shape: s2 }) => b1.partial_cmp(b2).and(s1.partial_cmp(s2)),
-            (Expression::Negate(e1), Expression::Negate(e2)) |
-            (Expression::Factorial(e1), Expression::Factorial(e2)) |
-            (Expression::Percent(e1), Expression::Percent(e2)) => {
-                e1.partial_cmp(e2)
-            }
-            (Expression::Add(a1, a2), Expression::Add(b1, b2)) |
-            (Expression::Subtract(a1, a2), Expression::Subtract(b1, b2)) |
-            (Expression::Multiply(a1, a2), Expression::Multiply(b1, b2)) |
-            (Expression::Divide(a1, a2), Expression::Divide(b1, b2)) |
-            (Expression::Power(a1, a2), Expression::Power(b1, b2)) |
-            (Expression::Modulus(a1, a2), Expression::Modulus(b1, b2)) => {
+            (
+                Expression::Function { name: n1, args: a1 },
+                Expression::Function { name: n2, args: a2 },
+            ) => a1.partial_cmp(a2).and(n1.partial_cmp(n2)),
+            (
+                Expression::Vector {
+                    backing: b1,
+                    size: s1,
+                },
+                Expression::Vector {
+                    backing: b2,
+                    size: s2,
+                },
+            ) => b1.partial_cmp(b2).and(s1.partial_cmp(s2)),
+            (
+                Expression::Matrix {
+                    backing: b1,
+                    shape: s1,
+                },
+                Expression::Matrix {
+                    backing: b2,
+                    shape: s2,
+                },
+            ) => b1.partial_cmp(b2).and(s1.partial_cmp(s2)),
+            (Expression::Negate(e1), Expression::Negate(e2))
+            | (Expression::Factorial(e1), Expression::Factorial(e2))
+            | (Expression::Percent(e1), Expression::Percent(e2)) => e1.partial_cmp(e2),
+            (Expression::Add(a1, a2), Expression::Add(b1, b2))
+            | (Expression::Subtract(a1, a2), Expression::Subtract(b1, b2))
+            | (Expression::Multiply(a1, a2), Expression::Multiply(b1, b2))
+            | (Expression::Divide(a1, a2), Expression::Divide(b1, b2))
+            | (Expression::Power(a1, a2), Expression::Power(b1, b2))
+            | (Expression::Modulus(a1, a2), Expression::Modulus(b1, b2)) => {
                 match a1.partial_cmp(b1) {
                     Some(Ordering::Equal) => a2.partial_cmp(b2),
                     o => o,
@@ -667,10 +795,34 @@ impl PartialOrd for Expression {
             }
             (Expression::Function { name: _, args: _ }, _) => Some(Ordering::Greater),
             (_, Expression::Function { name: _, args: _ }) => Some(Ordering::Less),
-            (Expression::Vector { backing: _, size: _ }, _) => Some(Ordering::Greater),
-            (_, Expression::Vector { backing: _, size: _ }) => Some(Ordering::Less),
-            (Expression::Matrix { backing: _, shape: _ }, _) => Some(Ordering::Greater),
-            (_, Expression::Matrix { backing: _, shape: _ }) => Some(Ordering::Less),
+            (
+                Expression::Vector {
+                    backing: _,
+                    size: _,
+                },
+                _,
+            ) => Some(Ordering::Greater),
+            (
+                _,
+                Expression::Vector {
+                    backing: _,
+                    size: _,
+                },
+            ) => Some(Ordering::Less),
+            (
+                Expression::Matrix {
+                    backing: _,
+                    shape: _,
+                },
+                _,
+            ) => Some(Ordering::Greater),
+            (
+                _,
+                Expression::Matrix {
+                    backing: _,
+                    shape: _,
+                },
+            ) => Some(Ordering::Less),
             (Expression::Negate(_), _) => Some(Ordering::Greater),
             (_, Expression::Negate(_)) => Some(Ordering::Less),
             (Expression::Factorial(_), _) => Some(Ordering::Greater),
@@ -697,7 +849,10 @@ impl fmt::Display for Expression {
         match self {
             Expression::Atom(a) => write!(f, "{}", a),
 
-            Expression::Vector { backing: vec, size: _ } => {
+            Expression::Vector {
+                backing: vec,
+                size: _,
+            } => {
                 write!(f, "<")?;
                 for (i, e) in vec.iter().enumerate() {
                     if i > 0 {
@@ -708,7 +863,10 @@ impl fmt::Display for Expression {
                 write!(f, ">")
             }
 
-            Expression::Matrix { backing: vec, shape: (rs, cs) } => {
+            Expression::Matrix {
+                backing: vec,
+                shape: (rs, cs),
+            } => {
                 write!(f, "[")?;
                 for r in 0..*rs {
                     if r > 0 {
@@ -723,18 +881,18 @@ impl fmt::Display for Expression {
                 }
                 write!(f, "]")
             }
-            
+
             Expression::Negate(e) => write!(f, "-({})", e),
             Expression::Factorial(e) => write!(f, "({})!", e),
             Expression::Percent(e) => write!(f, "({})%", e),
-            
+
             Expression::Add(l, r) => write!(f, "({} + {})", l, r),
             Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),
             Expression::Multiply(l, r) => write!(f, "({} * {})", l, r),
             Expression::Divide(l, r) => write!(f, "({} / {})", l, r),
             Expression::Power(l, r) => write!(f, "({} ^ {})", l, r),
             Expression::Modulus(l, r) => write!(f, "({} % {})", l, r),
-            
+
             Expression::Function { name, args } => {
                 write!(f, "{}(", name)?;
                 for (i, arg) in args.iter().enumerate() {
@@ -769,14 +927,24 @@ mod tests {
 
     #[test]
     fn test_numeric_eq() {
-        assert_ne!(Expression::Atom(Atom::Numeric(Numeric::Integer(1))), Expression::Atom(Atom::Numeric(Numeric::Decimal(1.2))));
+        assert_ne!(
+            Expression::Atom(Atom::Numeric(Numeric::Integer(1))),
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(1.2)))
+        );
     }
 
     #[test]
     fn test_fmt_parse() {
         //TODO: fix Expression to_string()
-        assert_eq!(Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6").unwrap(),
-            Expression::from_str(Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6").unwrap().to_string().as_str()).unwrap()
+        assert_eq!(
+            Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6").unwrap(),
+            Expression::from_str(
+                Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6")
+                    .unwrap()
+                    .to_string()
+                    .as_str()
+            )
+            .unwrap()
         )
     }
 }

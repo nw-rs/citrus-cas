@@ -5,7 +5,7 @@ extern crate alloc;
 pub mod expression;
 pub mod modifier;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     NotEnoughMemory,
     InvalidSyntax,
