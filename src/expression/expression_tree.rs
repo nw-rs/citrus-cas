@@ -173,11 +173,25 @@ impl fmt::Display for Atom {
     }
 }
 
+type AlVec<T> = alloc::vec::Vec<T>;
+
 //Expression: a tree representing a mathematical expression
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     //atoms
     Atom(Atom),
+
+    // Vector
+    Vector {
+        backing: AlVec<Expression>,
+        size: u8,
+    },
+
+    // Matrix
+    Matrix {
+        backing: AlVec<Expression>,
+        shape: (u8, u8),
+    },
 
     //unary operators
     Negate(Box<Self>),
@@ -355,6 +369,8 @@ impl Expression {
                         self.clone()
                     }
                 }
+                Expression::Vector { backing: _, size: _ } => todo!("Figure out conversion rules"),
+                Expression::Matrix { backing: _, shape: (_, _) } => todo!("Figure out conversion rules"),
                 Expression::Function { name: n1, args: a1 } => {
                     let mut args = Vec::new();
 
@@ -512,6 +528,18 @@ impl PartialOrd for Expression {
             (_, Expression::Divide(_, _)) => Some(Ordering::Less),
             (Expression::Power(_, _), _) => Some(Ordering::Greater),
             (_, Expression::Power(_, _)) => Some(Ordering::Less),
+            (_, Expression::Vector { backing: _, size: _ }) => {
+                todo!("Figure out ordering rules")
+            }
+            (Expression::Vector { backing: _, size: _ }, _) => {
+                todo!("Figure out ordering rules")
+            }
+            (_, Expression::Matrix { backing: _, shape: (_, _) }) => {
+                todo!("Figure out ordering rules")
+            }
+            (Expression::Matrix { backing: _, shape: (_, _) }, _) => {
+                todo!("Figure out ordering rules")
+            }
         }
     }
 }
@@ -521,6 +549,33 @@ impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Atom(a) => write!(f, "{}", a),
+
+            Expression::Vector { backing: vec, size: _ } => {
+                write!(f, "<")?;
+                for (i, e) in vec.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", e)?;
+                }
+                write!(f, ">")
+            }
+
+            Expression::Matrix { backing: vec, shape: (rs, cs) } => {
+                write!(f, "[")?;
+                for r in 0..*rs {
+                    if r > 0 {
+                        write!(f, "; ")?;
+                    }
+                    for c in 0..*cs {
+                        if c > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", vec[(*cs * r + c) as usize])?;
+                    }
+                }
+                write!(f, "]")
+            }
             
             Expression::Negate(e) => write!(f, "-({})", e),
             Expression::Factorial(e) => write!(f, "({})!", e),
