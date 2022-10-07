@@ -244,35 +244,62 @@ impl Expression {
     }
 
     //returns the number of escapes in the other expression, or None if the expressions are not equal
-    pub fn level_eq(&self, other: &Self) -> Option<u8> {
+    pub fn level_eq(&self, other: &Self) -> Option<(u8, LinearMap<Atom, Expression, 8>)> {
         match (self, other) {
             (e, Expression::Atom(a)) => match a {
                 Atom::Escape(escape, _) => match escape {
                     'A' => match e {
-                        Expression::Atom(_) => Some(1),
+                        Expression::Atom(a) => {
+                            let mut map = LinearMap::new();
+                            map.insert(a.clone(), e.clone());
+                            Some((1, map))
+                        },
                         _ => None,
                     }
                     'F' => match e {
-                        Expression::Function { .. } => Some(1),
+                        Expression::Function { name: _, args: _ } => {
+                            let mut map = LinearMap::new();
+                            map.insert(a.clone(), e.clone());
+                            Some((1, map))
+                        },
                         _ => None,
                     }
-                    '*' => Some(1),
+                    '*' => {
+                        let mut map = LinearMap::new();
+                        map.insert(a.clone(), e.clone());
+                        Some((1, map))
+                    },
                     _ => unimplemented!(),
                 }
-                _ => if self == other { Some(0) } else { None },
+                _ => if self == other { Some((0, LinearMap::new())) } else { None },
             },
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => {
                 if n1 == n2 {
                     let mut level = 0;
+                    let mut map = LinearMap::new();
 
                     for (arg1, arg2) in a1.iter().zip(a2.iter()) {
                         match arg1.level_eq(arg2) {
-                            Some(l) => level += l,
+                            Some(l) => {
+                                level += l.0;
+                                l.1.iter().for_each(|(k, v)| {
+                                    if let Some(value) = map.get(k) {
+                                        if value != v {
+                                            level=u8::MAX;
+                                        }
+                                    } else {
+                                        map.insert(k.clone(), v.clone());
+                                    }
+                                });
+                                if level == u8::MAX {
+                                    return None;
+                                }
+                            },
                             None => return None,
                         }
                     }
 
-                    Some(level)
+                    Some((level, map))
                 } else {
                     None
                 }
@@ -291,7 +318,24 @@ impl Expression {
                 let level1 = e11.level_eq(e21);
                 let level2 = e12.level_eq(e22);
                 match (level1, level2) {
-                    (Some(l1), Some(l2)) => Some(l1 + l2),
+                    (Some(l1), Some(l2)) => {
+                        let mut level = l1.0 + l2.0;
+                        let mut map = l1.1;
+                        l2.1.iter().for_each(|(k, v)| {
+                            if let Some(value) = map.get(k) {
+                                if value != v {
+                                    level=u8::MAX;
+                                }
+                            } else {
+                                map.insert(k.clone(), v.clone());
+                            }
+                        });
+                        if level == u8::MAX {
+                            None
+                        } else {
+                            Some((level, map))
+                        }
+                    },
                     _ => None,
                 }
             }
@@ -430,32 +474,7 @@ impl PartialOrd for Expression {
     //escapes are equivalent to their given expression types
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (Expression::Atom(a), e) | (e, Expression::Atom(a)) => match a {
-                Atom::Escape(escape, _) => match escape {
-                    'A' => match e {
-                        Expression::Atom(_) => Some(Ordering::Equal),
-                        _ => Some(Ordering::Less),
-                    }
-                    'F' => match e {
-                        Expression::Function { .. } => Some(Ordering::Equal),
-                        _ => Some(Ordering::Less),
-                    }
-                    '*' => Some(Ordering::Equal),
-                    _ => unimplemented!(),
-                },
-                _ => match e {
-                    Expression::Atom(b) => match b {
-                        Atom::Escape(escape, _) => match escape {
-                            'A' => Some(Ordering::Equal),
-                            'F' => Some(Ordering::Greater),
-                            '*' => Some(Ordering::Equal),
-                            _ => unimplemented!(),
-                        },
-                        _ => a.partial_cmp(b),
-                    },
-                    _ => Some(Ordering::Greater),
-                },
-            },
+            (Expression::Atom(a), e) | (e, Expression::Atom(a)) => Some(Ordering::Equal),
             (Expression::Function { name: n1, args: a1 }, Expression::Function { name: n2, args: a2 }) => a1.partial_cmp(a2).and(n1.partial_cmp(n2)),
             (Expression::Negate(e1), Expression::Negate(e2)) |
             (Expression::Factorial(e1), Expression::Factorial(e2)) |
@@ -542,7 +561,14 @@ mod tests {
 
     use alloc::string::ToString;
 
+    use crate::expression::expression_tree::{Atom, Numeric};
+
     use super::Expression;
+
+    #[test]
+    fn test_numeric_eq() {
+        assert_ne!(Expression::Atom(Atom::Numeric(Numeric::Integer(1))), Expression::Atom(Atom::Numeric(Numeric::Decimal(1.2))));
+    }
 
     #[test]
     fn test_fmt_parse() {
