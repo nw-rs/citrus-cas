@@ -11,7 +11,7 @@ use heapless::LinearMap;
 
 use crate::{
     expression::parser::parse,
-    modifier::{ModifierImmutable, ModifierMutable, adaptable_modifier::ModifierFunction},
+    modifier::{adaptable_modifier::ModifierFunction, ModifierImmutable, ModifierMutable},
     Error,
 };
 
@@ -570,10 +570,7 @@ impl Expression {
                             backing.push(Box::new(arg.conversion()(map).0));
                         }
 
-                        Expression::Vector {
-                            backing,
-                            size: *s,
-                        }
+                        Expression::Vector { backing, size: *s }
                     }
                     Expression::Matrix {
                         backing: b,
@@ -585,10 +582,7 @@ impl Expression {
                             backing.push(Box::new(arg.conversion()(map).0));
                         }
 
-                        Expression::Matrix {
-                            backing,
-                            shape: *s,
-                        }
+                        Expression::Matrix { backing, shape: *s }
                     }
                     Expression::Negate(e) => {
                         Expression::Negate(Box::new(e.clone().conversion()(map).0))
