@@ -1,6 +1,8 @@
 use alloc::{boxed::Box, string::ToString, vec::Vec};
 
+use nom::bytes::complete::take_while;
 use nom::multi::separated_list0;
+use nom::sequence::pair;
 use nom::{
     branch::alt,
     bytes::complete::{take, take_while1},
@@ -65,7 +67,13 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
         delimited(
             space0,
             tuple((
-                preceded(space0, take_while1(|c: char| c.is_alphabetic())),
+                preceded(
+                    space0,
+                    pair(
+                        take_while1(|c: char| c.is_alphabetic()),
+                        take_while(|c: char| c.is_alphanumeric()),
+                    ),
+                ),
                 preceded(
                     char('('),
                     many0(terminated(parse_add_sub, alt((char(','), char(')'))))),
@@ -74,7 +82,7 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
             space0,
         ),
         |(name, arg_list)| Expression::Function {
-            name: name.to_string(),
+            name: name.0.to_string() + name.1,
             args: arg_list.into_iter().map(Box::new).collect(),
         },
     )(input)

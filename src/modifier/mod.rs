@@ -75,7 +75,9 @@ mod tests {
                 &NothingMod,
                 &NothingMod
             ),
-            Ok(Numeric::Decimal(0.91294525073))
+            Ok(Expression::Atom(Atom::Numeric(Numeric::Decimal(
+                0.91294525073
+            ))))
         );
     }
 }

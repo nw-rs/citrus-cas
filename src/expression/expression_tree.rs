@@ -3,7 +3,7 @@ use core::{
     cmp::Ordering,
     fmt,
     hash::{Hash, Hasher},
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Mul, Neg, Sub},
     str::FromStr,
 };
 
@@ -16,11 +16,85 @@ use crate::{
 };
 
 //Numeric: representation of any numeric value
-#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Numeric {
     Integer(i32),
     Decimal(f32),
     Fraction(i32, i32), //might be unnecessary?
+}
+
+impl From<Numeric> for f32 {
+    fn from(n: Numeric) -> f32 {
+        match n {
+            Numeric::Integer(i) => i as f32,
+            Numeric::Decimal(d) => d,
+            Numeric::Fraction(n, d) => n as f32 / d as f32,
+        }
+    }
+}
+
+impl From<f32> for Numeric {
+    fn from(f: f32) -> Numeric {
+        Numeric::Decimal(f)
+    }
+}
+
+impl From<Numeric> for i32 {
+    fn from(n: Numeric) -> i32 {
+        match n {
+            Numeric::Integer(i) => i,
+            Numeric::Decimal(d) => d as i32,
+            Numeric::Fraction(n, d) => n / d,
+        }
+    }
+}
+
+impl From<i32> for Numeric {
+    fn from(i: i32) -> Numeric {
+        Numeric::Integer(i)
+    }
+}
+
+impl PartialOrd for Numeric {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Numeric::Integer(i1), Numeric::Integer(i2)) => i1.partial_cmp(i2),
+            (Numeric::Integer(i1), Numeric::Decimal(d2)) => (*i1 as f32).partial_cmp(d2),
+            (Numeric::Integer(i1), Numeric::Fraction(n2, d2)) => {
+                (*i1 as f32).partial_cmp(&(*n2 as f32 / *d2 as f32))
+            }
+            (Numeric::Decimal(d1), Numeric::Integer(i2)) => d1.partial_cmp(&(*i2 as f32)),
+            (Numeric::Decimal(d1), Numeric::Decimal(d2)) => d1.partial_cmp(d2),
+            (Numeric::Decimal(d1), Numeric::Fraction(n2, d2)) => {
+                d1.partial_cmp(&(*n2 as f32 / *d2 as f32))
+            }
+            (Numeric::Fraction(n1, d1), Numeric::Integer(i2)) => {
+                (*n1 as f32 / *d1 as f32).partial_cmp(&(*i2 as f32))
+            }
+            (Numeric::Fraction(n1, d1), Numeric::Decimal(d2)) => {
+                (*n1 as f32 / *d1 as f32).partial_cmp(d2)
+            }
+            (Numeric::Fraction(n1, d1), Numeric::Fraction(n2, d2)) => {
+                (*n1 as f32 / *d1 as f32).partial_cmp(&(*n2 as f32 / *d2 as f32))
+            }
+        }
+    }
+}
+
+impl PartialEq for Numeric {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Numeric::Integer(i), Numeric::Integer(j)) => i == j,
+            (Numeric::Decimal(i), Numeric::Decimal(j)) => i == j,
+            (Numeric::Fraction(i, j), Numeric::Fraction(k, l)) => i * l == j * k,
+            (Numeric::Integer(i), Numeric::Decimal(j)) => *i as f32 == *j,
+            (Numeric::Decimal(i), Numeric::Integer(j)) => *i == *j as f32,
+            (Numeric::Integer(i), Numeric::Fraction(j, k)) => *i == *j / *k,
+            (Numeric::Fraction(i, j), Numeric::Integer(k)) => *i == *k * *j,
+            (Numeric::Decimal(i), Numeric::Fraction(j, k)) => *i == *j as f32 / *k as f32,
+            (Numeric::Fraction(i, j), Numeric::Decimal(k)) => *i as f32 / *j as f32 == *k,
+        }
+    }
 }
 
 impl Eq for Numeric {}
@@ -150,12 +224,14 @@ impl Div for Numeric {
     }
 }
 
-impl From<Numeric> for f32 {
-    fn from(n: Numeric) -> f32 {
-        match n {
-            Numeric::Integer(i) => i as f32,
-            Numeric::Decimal(d) => d,
-            Numeric::Fraction(n, d) => n as f32 / d as f32,
+impl Neg for Numeric {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            Numeric::Integer(a) => Numeric::Integer(-a),
+            Numeric::Decimal(a) => Numeric::Decimal(-a),
+            Numeric::Fraction(a, b) => Numeric::Fraction(-a, b),
         }
     }
 }
@@ -182,6 +258,7 @@ pub enum Atom {
     // - M for matrices
     // - * for everything
     Escape(char, u8),
+    Error(crate::Error),
 }
 
 impl fmt::Display for Atom {
@@ -190,6 +267,7 @@ impl fmt::Display for Atom {
             Atom::Numeric(n) => write!(f, "{}", n),
             Atom::Variable(v) => write!(f, "{}", v),
             Atom::Escape(e, n) => write!(f, "_{}{}", e, n),
+            Atom::Error(e) => write!(f, "{}", e),
         }
     }
 }
@@ -267,7 +345,7 @@ impl Expression {
         approximator: &A,
         evaluator: &E,
         simplifier: &S,
-    ) -> Result<Numeric, crate::Error> {
+    ) -> Result<Expression, crate::Error> {
         let mut expr = self.clone();
 
         for _ in 0..L {
@@ -277,10 +355,7 @@ impl Expression {
             }
         }
 
-        match expr {
-            Expression::Atom(Atom::Numeric(n)) => Ok(n),
-            _ => Err(Error::UndefinedSymbol),
-        }
+        expr.approximated()
     }
 
     //reorganizes the expression tree using the given modifier a max of L times
@@ -321,7 +396,7 @@ impl Expression {
         approximator: &mut A,
         evaluator: &mut E,
         simplifier: &mut S,
-    ) -> Result<Numeric, crate::Error> {
+    ) -> Result<Expression, crate::Error> {
         let mut expr = self.clone();
 
         for _ in 0..L {
@@ -331,8 +406,22 @@ impl Expression {
             }
         }
 
-        match expr {
-            Expression::Atom(Atom::Numeric(n)) => Ok(n),
+        expr.approximated()
+    }
+
+    fn approximated(self) -> Result<Expression, crate::Error> {
+        match self {
+            Expression::Atom(Atom::Numeric(n)) => Ok(match n < Numeric::Integer(0) {
+                true => Expression::Negate(Box::new(Expression::Atom(Atom::Numeric(-n)))),
+                false => Expression::Atom(Atom::Numeric(n)),
+            }),
+            Expression::Negate(e) => {
+                if let Ok(n) = e.approximated() {
+                    Ok(Expression::Negate(Box::new(n)))
+                } else {
+                    Err(Error::UndefinedSymbol)
+                }
+            }
             _ => Err(Error::UndefinedSymbol),
         }
     }
