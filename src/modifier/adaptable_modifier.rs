@@ -59,22 +59,27 @@ where
     }
 
     pub fn get(&self, value: &T) -> Option<&Vec<(T, K)>> {
-        if value < &self.value_pairs.first().unwrap().0 {
-            match &self.left {
-                Some(left) => left.get(value),
-                None => None,
-            }
-        } else if value > &self.value_pairs.first().unwrap().0 {
-            match &self.right {
-                Some(right) => right.get(value),
-                None => None,
+        if let Some(v) = self.value_pairs.first() {
+            if value < &v.0 {
+                match &self.left {
+                    Some(left) => left.get(value),
+                    None => None,
+                }
+            } else if value > &v.0 {
+                match &self.right {
+                    Some(right) => right.get(value),
+                    None => None,
+                }
+            } else {
+                Some(&self.value_pairs)
             }
         } else {
-            Some(&self.value_pairs)
+            None
         }
     }
 }
 
+//ModifierFunction: a function pointer that generates a new expression using an escape arugment map
 pub type ModifierFunction = Box<dyn Fn(&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>;
 
 //AdaptableModifier: a modifier whose rules can be added to at runtime
