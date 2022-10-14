@@ -153,12 +153,6 @@ impl AdaptableModifier {
 
 impl ModifierImmutable for AdaptableModifier {
     fn modify_immut(&self, expression: &mut Expression) -> bool {
-        if let Some(result) = self.memoizing_map.get(expression) {
-            if !*result {
-                return false;
-            }
-        }
-
         let mut modified = false;
 
         match expression {
@@ -219,70 +213,70 @@ impl ModifierImmutable for AdaptableModifier {
 
 impl ModifierMutable for AdaptableModifier {
     fn modify_mut(&mut self, expression: &mut Expression) -> bool {
-        if let Some(result) = self.memoizing_map.get(expression) {
-            if !*result {
-                return false;
-            }
-        }
+        if let Some(_) = self.memoizing_map.get(expression) {
+            false
+        } else {
+            let mem_save = expression.clone();
+            let mut modified = false;
 
-        let mem_save = expression.clone();
-        let mut modified = false;
+            match expression {
+                Expression::Atom(_) => {}
 
-        match expression {
-            Expression::Atom(_) => {}
+                Expression::Vector {
+                    backing: vec,
+                    size: _,
+                } => {
+                    for e in vec {
+                        modified = self.modify_mut(e) || modified;
+                    }
+                }
+                Expression::Matrix {
+                    backing: vec,
+                    shape: (_, _),
+                } => {
+                    for e in vec {
+                        modified = self.modify_mut(e) || modified;
+                    }
+                }
 
-            Expression::Vector {
-                backing: vec,
-                size: _,
-            } => {
-                for e in vec {
-                    modified = self.modify_mut(e) || modified;
+                Expression::Function { name: _, args: a } => {
+                    for expr in a {
+                        modified = self.modify_mut(expr) || modified;
+                    }
+                }
+
+                Expression::Negate(e1) | Expression::Factorial(e1) | Expression::Percent(e1) => {
+                    modified = self.modify_mut(e1)
+                }
+
+                Expression::Add(e1, e2)
+                | Expression::Subtract(e1, e2)
+                | Expression::Multiply(e1, e2)
+                | Expression::Divide(e1, e2)
+                | Expression::Power(e1, e2)
+                | Expression::Modulus(e1, e2) => {
+                    let m1 = self.modify_mut(e1);
+                    let m2 = self.modify_mut(e2);
+                    modified = m1 || m2;
                 }
             }
-            Expression::Matrix {
-                backing: vec,
-                shape: (_, _),
-            } => {
-                for e in vec {
-                    modified = self.modify_mut(e) || modified;
+
+            let mut rule_mod;
+            for rule in self.get_rule(expression) {
+                (*expression, rule_mod) =
+                    rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
+                if rule_mod {
+                    modified = true;
+                    break;
                 }
             }
 
-            Expression::Function { name: _, args: a } => {
-                for expr in a {
-                    modified = self.modify_mut(expr) || modified;
-                }
+            if !modified {
+                self.memoizing_map.insert(mem_save, false);
             }
 
-            Expression::Negate(e1) | Expression::Factorial(e1) | Expression::Percent(e1) => {
-                modified = self.modify_mut(e1)
-            }
-
-            Expression::Add(e1, e2)
-            | Expression::Subtract(e1, e2)
-            | Expression::Multiply(e1, e2)
-            | Expression::Divide(e1, e2)
-            | Expression::Power(e1, e2)
-            | Expression::Modulus(e1, e2) => {
-                let m1 = self.modify_mut(e1);
-                let m2 = self.modify_mut(e2);
-                modified = m1 || m2;
-            }
+            modified
         }
-
-        let mut rule_mod;
-        for rule in self.get_rule(expression) {
-            (*expression, rule_mod) =
-                rule.1(&expression.extract_arguments(&rule.0, LinearMap::new()));
-            if rule_mod {
-                modified = true;
-                break;
-            }
-        }
-
-        self.memoizing_map.insert(mem_save, modified);
-
-        modified
     }
 }
 
