@@ -1,5 +1,6 @@
 use core::{
     fmt,
+    hash::BuildHasher,
     ops::{Add, AddAssign},
 };
 
@@ -80,14 +81,12 @@ where
 }
 
 //ModifierFunction: a function pointer that generates a new expression using an escape arugment map
+//8 here is a magic number: it's the max number of arguments that can be passed to a function
 pub type ModifierFunction = Box<dyn Fn(&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>;
 
 //AdaptableModifier: a modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
-    //8 here is a magic number: it's the max number of arguments that can be passed to a function
     search_tree: MultiKeyBinarySearchTree<Expression, ModifierFunction>,
-    //because modificiation is so repetitive, we can cache the boolean result of modification, to skip false results
-    memoizing_map: IndexMap<Expression, bool>,
 }
 
 impl AdaptableModifier {
@@ -102,10 +101,7 @@ impl AdaptableModifier {
             ));
         }
 
-        Self {
-            search_tree,
-            memoizing_map: IndexMap::new(),
-        }
+        Self { search_tree }
     }
 
     //derives an AdaptableModifier from a list of rules in Expression and Function form
@@ -116,19 +112,15 @@ impl AdaptableModifier {
             search_tree.insert((expression, function));
         }
 
-        Self {
-            search_tree,
-            memoizing_map: IndexMap::new(),
-        }
+        Self { search_tree }
     }
 
     pub fn insert_rule(&mut self, expr: Expression, func: ModifierFunction) {
         self.search_tree.insert((expr, func));
-        self.memoizing_map.clear();
     }
 
     //retrieves the rule which is the closest match with the given expression
-    pub fn get_rule(&self, expr: &Expression) -> Vec<&(Expression, ModifierFunction)> {
+    fn get_rule(&self, expr: &Expression) -> Vec<&(Expression, ModifierFunction)> {
         match self.search_tree.get(expr) {
             Some(list) => {
                 let (mut level, mut new_list) = (8, Vec::new()); //8 is mod magic here
@@ -153,12 +145,6 @@ impl AdaptableModifier {
 
 impl ModifierImmutable for AdaptableModifier {
     fn modify_immut(&self, expression: &mut Expression) -> bool {
-        if let Some(result) = self.memoizing_map.get(expression) {
-            if !*result {
-                return false;
-            }
-        }
-
         let mut modified = false;
 
         match expression {
@@ -219,13 +205,6 @@ impl ModifierImmutable for AdaptableModifier {
 
 impl ModifierMutable for AdaptableModifier {
     fn modify_mut(&mut self, expression: &mut Expression) -> bool {
-        if let Some(result) = self.memoizing_map.get(expression) {
-            if !*result {
-                return false;
-            }
-        }
-
-        let mem_save = expression.clone();
         let mut modified = false;
 
         match expression {
@@ -279,8 +258,6 @@ impl ModifierMutable for AdaptableModifier {
                 break;
             }
         }
-
-        self.memoizing_map.insert(mem_save, modified);
 
         modified
     }
@@ -346,6 +323,119 @@ impl fmt::Display for AdaptableModifier {
     }
 }
 
+//CachingAdaptableModifier: an AdaptableModifier that caches the results of its modifications
+pub struct CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    pub modifier: AdaptableModifier,
+    //because modificiation is recursive and repetitive, we memoize the result of modification, to skip false results
+    cache: IndexMap<Expression, bool, S>,
+    //if memoization_limit is Some(n), then the memoizing_map will be halfed after n insertions
+    limit: Option<usize>,
+}
+
+impl<S> CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    pub fn from_str_list(rules: Vec<(&str, &str)>, limit: Option<usize>) -> Self {
+        let modifier = AdaptableModifier::from_str_list(rules);
+
+        Self {
+            modifier,
+            cache: IndexMap::with_hasher(S::default()),
+            limit,
+        }
+    }
+
+    pub fn from_fn_list(rules: Vec<(Expression, ModifierFunction)>, limit: Option<usize>) -> Self {
+        let modifier = AdaptableModifier::from_fn_list(rules);
+
+        Self {
+            modifier,
+            cache: IndexMap::with_hasher(S::default()),
+            limit,
+        }
+    }
+
+    pub fn insert_rule(&mut self, expr: Expression, func: ModifierFunction) {
+        self.modifier.insert_rule(expr, func);
+        self.cache.clear();
+    }
+}
+
+impl<S> ModifierMutable for CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    fn modify_mut(&mut self, expression: &mut Expression) -> bool {
+        if self.cache.get(expression).is_some() {
+            false
+        } else {
+            let mem_save = expression.clone();
+
+            let modified = self.modifier.modify_immut(expression);
+
+            if !modified {
+                if let Some(limit) = self.limit {
+                    if self.cache.len() >= limit {
+                        self.cache.drain(limit / 2..limit);
+                    }
+                }
+
+                self.cache.insert(mem_save, false);
+            }
+
+            modified
+        }
+    }
+}
+
+impl<S> Add<AdaptableModifier> for CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    type Output = Self;
+
+    fn add(mut self, other: AdaptableModifier) -> Self {
+        self.modifier += other;
+
+        self
+    }
+}
+
+impl<S> AddAssign<AdaptableModifier> for CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    fn add_assign(&mut self, other: AdaptableModifier) {
+        self.modifier += other;
+    }
+}
+
+impl<S> Add for CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    type Output = Self;
+
+    fn add(mut self, other: Self) -> Self {
+        self.modifier += other.modifier;
+
+        self
+    }
+}
+
+impl<S> AddAssign for CachingAdaptableModifier<S>
+where
+    S: Default + BuildHasher,
+{
+    fn add_assign(&mut self, other: Self) {
+        self.modifier += other.modifier;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, vec};
@@ -355,7 +445,7 @@ mod tests {
     use super::{AdaptableModifier, ModifierImmutable};
     use crate::{
         expression::expression_tree::{Atom, Expression},
-        modifier::ModifierMutable,
+        modifier::{adaptable_modifier::CachingAdaptableModifier, ModifierMutable},
     };
 
     #[test]
@@ -844,5 +934,22 @@ mod tests {
         modifier2.modify_mut(&mut expr_mut);
 
         assert_eq!(expr_mut, expected_expr);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_caching_am() {
+        use std::collections::hash_map::RandomState;
+
+        let mut modifier = CachingAdaptableModifier::<RandomState>::from_str_list(
+            vec![("_*1 - _*2", "_*1 + -_*2")],
+            None,
+        );
+
+        let mut expr1 = Expression::from_str("1 - 2").unwrap();
+        let expected_expr1 = Expression::from_str("1 + -2").unwrap();
+        expr1.simplify::<CachingAdaptableModifier<RandomState>, 50>(&mut modifier);
+
+        assert_eq!(expr1, expected_expr1);
     }
 }
