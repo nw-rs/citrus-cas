@@ -70,14 +70,14 @@ mod tests {
         };
 
         assert_eq!(
-            expr.approximate_im::<SimpleMod, NothingMod, NothingMod, 50>(
+            expr.evaluate_im::<SimpleMod, NothingMod, NothingMod, 50>(
                 &SimpleMod,
                 &NothingMod,
                 &NothingMod
-            ),
-            Ok(Expression::Atom(Atom::Numeric(Numeric::Decimal(
-                0.91294525073
-            ))))
+            )
+            .1
+            .unwrap(),
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(0.91294525073)))
         );
     }
 }
