@@ -920,21 +920,67 @@ impl PartialOrd for Expression {
 }
 
 impl fmt::Display for Expression {
-    // TODO: smarter parentheses, likely using some kind of traversal?
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Atom(a) => write!(f, "{}", a),
 
-            Expression::Negate(e) => write!(f, "-{}", e),
-            Expression::Factorial(e) => write!(f, "{}!", e),
-            Expression::Percent(e) => write!(f, "{}%", e),
+            Expression::Negate(e) => match **e {
+                Expression::Atom(_) => write!(f, "-{}", e),
+                _ => write!(f, "-({})", e),
+            },
+            Expression::Factorial(e) => match **e {
+                Expression::Atom(_) => write!(f, "{}!", e),
+                _ => write!(f, "({})!", e),
+            },
+            Expression::Percent(e) => match **e {
+                Expression::Atom(_) => write!(f, "{}%", e),
+                _ => write!(f, "({})%", e),
+            },
 
-            Expression::Add(l, r) => write!(f, "({} + {})", l, r),
-            Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),
-            Expression::Multiply(l, r) => write!(f, "({} * {})", l, r),
-            Expression::Divide(l, r) => write!(f, "({} / {})", l, r),
-            Expression::Power(l, r) => write!(f, "({} ^ {})", l, r),
-            Expression::Modulus(l, r) => write!(f, "({} % {})", l, r),
+            Expression::Add(l, r) => write!(f, "{} + {}", l, r),
+            Expression::Subtract(l, r) => write!(f, "{} - {}", l, r),
+            Expression::Modulus(l, r) => write!(f, "{} % {}", l, r),
+
+            Expression::Multiply(l, r)
+            | Expression::Divide(l, r) => {
+                match **l {
+                    Expression::Add(_, _)
+                    | Expression::Subtract(_, _)
+                    | Expression::Modulus(_, _) => write!(f, "({})", l)?,
+                    _ => write!(f, "{}", l)?,
+                };
+                write!(f, " {} ", match self {
+                    Expression::Multiply(_, _) => "*",
+                    Expression::Divide(_, _) => "/",
+                    _ => unreachable!(),
+                })?;
+                match **r {
+                    Expression::Add(_, _)
+                    | Expression::Subtract(_, _)
+                    | Expression::Modulus(_, _) => write!(f, "({})", r),
+                    _ => write!(f, "{}", r),
+                }
+            },
+
+            Expression::Power(l, r) => {
+                match **l {
+                    Expression::Add(_, _)
+                    | Expression::Subtract(_, _)
+                    | Expression::Modulus(_, _)
+                    | Expression::Multiply(_, _)
+                    | Expression::Divide(_, _) => write!(f, "({})", l)?,
+                    _ => write!(f, "{}", l)?,
+                };
+                write!(f, " ^ ")?;
+                match **r {
+                    Expression::Add(_, _)
+                    | Expression::Subtract(_, _)
+                    | Expression::Modulus(_, _)
+                    | Expression::Multiply(_, _)
+                    | Expression::Divide(_, _) => write!(f, "({})", r),
+                    _ => write!(f, "{}", r),
+                }
+            },
 
             Expression::Function { name, args } => {
                 write!(f, "{}(", name)?;
