@@ -9,12 +9,12 @@ use crate::expression::expression_tree::{Atom, Expression, Numeric};
 
 use super::adaptable_modifier::{AdaptableModifier, ModifierFunction};
 
-//an AdaptableModifier that simplifies an expression tree
+// an AdaptableModifier that simplifies an expression tree
 pub fn simplifier() -> AdaptableModifier {
     reorganize() + reduce() + numeric_simplify()
 }
 
-//an AdaptableModifier that can reorganize the expression tree
+// an AdaptableModifier that can reorganize the expression tree
 pub fn reorganize() -> AdaptableModifier {
     let num = AdaptableModifier::from_fn_list(vec![
         (
@@ -199,7 +199,7 @@ fn denegate_internal(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool)
     }
 }
 
-//an AdaptableModifier that reduces identities in an expression tree
+// an AdaptableModifier that reduces identities in an expression tree
 pub fn reduce() -> AdaptableModifier {
     AdaptableModifier::from_str_list(vec![
         ("_*1 + _*1", "2 * _*1"),
@@ -232,7 +232,7 @@ pub fn reduce() -> AdaptableModifier {
     ])
 }
 
-//an AdaptableModifier that simplifies numerics in an expression tree
+// an AdaptableModifier that simplifies numerics in an expression tree
 pub fn numeric_simplify() -> AdaptableModifier {
     AdaptableModifier::from_fn_list(vec![
         (
@@ -348,12 +348,12 @@ fn pow_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     }
 }
 
-//An AdpatableModifier that evaluates an expression
+// an AdpatableModifier that evaluates an expression
 pub fn evaluator() -> AdaptableModifier {
     AdaptableModifier::from_str_list(vec![])
 }
 
-//An AdaptableModifer that approximates an expression
+// an AdaptableModifer that approximates an expression
 pub fn approximator() -> AdaptableModifier {
     num_approx_helper() + trig_approx() + log_approx() + numeric_fun_approx() + calculus_approx()
 }
@@ -514,12 +514,12 @@ pub fn numeric_fun_approx() -> AdaptableModifier {
 pub fn calculus_approx() -> AdaptableModifier {
     AdaptableModifier::from_fn_list(vec![
         (
-            //diff(expression, for this variable, at this value)
+            // diff(expression, for this variable, at this value)
             "diff(_*1, _*2, _A1)".parse::<Expression>().unwrap(),
             Box::new(diff_approx),
         ),
         (
-            //integrate(expression, for this variable, from this value, to this value)
+            // integrate(expression, for this variable, from this value, to this value)
             "int(_*1, _*2, _A1, _A2)".parse::<Expression>().unwrap(),
             Box::new(int_approx),
         ),
@@ -591,7 +591,7 @@ fn value_replace(expr: &Expression, var: &Expression, val: &Expression) -> Expre
     }
 }
 
-//approximate the derivative of a function
+// approximate the derivative of a function
 fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     let expr = map.get(&Atom::Escape('*', 1)).unwrap();
     let var = map.get(&Atom::Escape('*', 2)).unwrap();
@@ -601,7 +601,7 @@ fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
     match val {
         Expression::Atom(Atom::Numeric(n)) => (
-            //symmetric difference quotient at h = 0.0001
+            // symmetric difference quotient at h = 0.0001
             Expression::Divide(
                 Box::new(Expression::Subtract(
                     Box::new(value_replace(
@@ -626,15 +626,15 @@ fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     }
 }
 
-//approximate the integral of a function
+// approximate the integral of a function
 fn int_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     let expr = map.get(&Atom::Escape('*', 1)).unwrap();
     let var = map.get(&Atom::Escape('*', 2)).unwrap();
     let val1 = map.get(&Atom::Escape('A', 1)).unwrap();
     let val2 = map.get(&Atom::Escape('A', 2)).unwrap();
 
-    //TODO: use a more accurate approximation
-    //trapeziodal rule: (b-a)*((f(a)+f(b))/2)
+    // TODO: use a more accurate approximation
+    // trapeziodal rule: (b-a)*((f(a)+f(b))/2)
     match (val1, val2) {
         (Expression::Atom(Atom::Numeric(_)), Expression::Atom(Atom::Numeric(_))) => (
             Expression::Multiply(
@@ -659,8 +659,8 @@ fn int_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     }
 }
 
-//TODO: implement limit approximation
-//approximate the limit of a function
+// TODO: implement limit approximation
+// approximate the limit of a function
 /* fn limit_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     unimplemented!()
 } */
@@ -831,7 +831,7 @@ mod tests {
         let mut expr7 = "5.4 * x / 1.2".parse::<Expression>().unwrap();
         expr7.simplify_im::<AdaptableModifier, 100>(&num);
 
-        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); //numeric_simplify shouldn't reorganize the expression
+        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); // numeric_simplify shouldn't reorganize the expression
     }
 
     #[test]
@@ -984,7 +984,7 @@ mod tests {
         let mut expr7 = "5.4 * x / 1.2".parse::<Expression>().unwrap();
         expr7.simplify_im::<AdaptableModifier, 100>(&simp);
 
-        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); //numeric_simplify shouldn't reorganize the expression
+        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); // numeric_simplify shouldn't reorganize the expression
     }
 
     #[test]
@@ -1212,12 +1212,12 @@ mod tests {
         let expr1 = "diff(x^2, x, 2)".parse::<Expression>().unwrap();
         let expr1_comp = form(&expr1);
 
-        assert_eq!(expr1_comp, Ok("3.9982796".parse::<Expression>().unwrap())); //should be 4, but approx isn't exact
+        assert_eq!(expr1_comp, Ok("3.9982796".parse::<Expression>().unwrap())); // should be 4, but approx isn't exact
 
         let expr2 = "diff(x^2, x, 3)".parse::<Expression>().unwrap();
         let expr2_comp = form(&expr2);
 
-        assert_eq!(expr2_comp, Ok("5.993843".parse::<Expression>().unwrap())); //should be 6, but approx isn't exact
+        assert_eq!(expr2_comp, Ok("5.993843".parse::<Expression>().unwrap())); // should be 6, but approx isn't exact
 
         let expr3 = "int(x^2, x, 4, 6)".parse::<Expression>().unwrap();
         let expr3_comp = form(&expr3);
@@ -1227,7 +1227,7 @@ mod tests {
         let expr4 = "int(2*x^2-x, x, 4, 6)".parse::<Expression>().unwrap();
         let expr4_comp = form(&expr4);
 
-        assert_eq!(expr4_comp, Ok("94".parse::<Expression>().unwrap())); //should be 91.33333333333333, but approx isn't exact
+        assert_eq!(expr4_comp, Ok("94".parse::<Expression>().unwrap())); // should be 91.33333333333333, but approx isn't exact
     }
 
     #[test]
@@ -1280,11 +1280,11 @@ mod tests {
         let expr8 = "diff(log(x), x, 4)".parse::<Expression>().unwrap();
         let expr8_comp = form(&expr8);
 
-        assert_eq!(expr8_comp, Ok("0.2503395".parse::<Expression>().unwrap())); //should be 0.25, but approx isn't exact
+        assert_eq!(expr8_comp, Ok("0.2503395".parse::<Expression>().unwrap())); // should be 0.25, but approx isn't exact
 
         let expr9 = "int(log(x), x, 4, 6)".parse::<Expression>().unwrap();
         let expr9_comp = form(&expr9);
 
-        assert_eq!(expr9_comp, Ok("3.1780539".parse::<Expression>().unwrap())); //should be ~3.20537, but approx isn't exact
+        assert_eq!(expr9_comp, Ok("3.1780539".parse::<Expression>().unwrap())); // should be ~3.20537, but approx isn't exact
     }
 }

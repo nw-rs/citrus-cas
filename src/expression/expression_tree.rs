@@ -637,7 +637,7 @@ impl Expression {
                         let mut args = Vec::new();
 
                         for arg in a.clone() {
-                            args.push(Box::new(arg.conversion()(map).0)); //vec overflow is impossible here
+                            args.push(Box::new(arg.conversion()(map).0)); // vec overflow is impossible here
                         }
 
                         Expression::Function {
@@ -830,7 +830,7 @@ impl Div for Expression {
 }
 
 impl PartialOrd for Expression {
-    //escapes are equivalent to their given expression types
+    // escapes are equivalent to their given expression types
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Expression::Atom(_), _) | (_, Expression::Atom(_)) => Some(Ordering::Equal),

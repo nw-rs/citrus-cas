@@ -12,8 +12,8 @@ use crate::expression::expression_tree::{Atom, Expression};
 
 use super::{ModifierImmutable, ModifierMutable};
 
-//TODO: create more efficient AdaptableModifier backend
-//MultiKeyBinarySearchTree: generic BST struct that has multiple keys per node
+// TODO: create more efficient AdaptableModifier backend
+// MultiKeyBinarySearchTree: generic BST struct that has multiple keys per node
 struct MultiKeyBinarySearchTree<T, K>
 where
     T: PartialOrd + fmt::Display,
@@ -38,23 +38,19 @@ where
     pub fn insert(&mut self, value_pair: (T, K)) {
         if let Some(value) = self.value_pairs.first() {
             if value_pair.0 < value.0 {
-                //println!("left: {}", value_pair.0);
                 match &mut self.left {
                     Some(left) => left.insert(value_pair),
                     None => self.left = Some(Box::new(Self::new(vec![value_pair]))),
                 }
             } else if value_pair.0 > value.0 {
-                //println!("right: {}", value_pair.0);
                 match &mut self.right {
                     Some(right) => right.insert(value_pair),
                     None => self.right = Some(Box::new(Self::new(vec![value_pair]))),
                 }
             } else {
-                //println!("in_exists: {}", value_pair.0);
                 self.value_pairs.push(value_pair);
             }
         } else {
-            //println!("in_new: {}", value_pair.0);
             self.value_pairs.push(value_pair);
         }
     }
@@ -80,17 +76,17 @@ where
     }
 }
 
-//ModifierFunction: a function pointer that generates a new expression using an escape arugment map
-//8 here is a magic number: it's the max number of arguments that can be passed to a function
+// ModifierFunction: a function pointer that generates a new expression using an escape arugment map
+// 8 here is a magic number: it's the max number of arguments that can be passed to a function
 pub type ModifierFunction = Box<dyn Fn(&LinearMap<Atom, Expression, 8>) -> (Expression, bool)>;
 
-//AdaptableModifier: a modifier whose rules can be added to at runtime
+// AdaptableModifier: a modifier whose rules can be added to at runtime
 pub struct AdaptableModifier {
     search_tree: MultiKeyBinarySearchTree<Expression, ModifierFunction>,
 }
 
 impl AdaptableModifier {
-    //automatically derives an AdaptableModifier from a list of rules in string form
+    // automatically derives an AdaptableModifier from a list of rules in string form
     pub fn from_str_list(rules: Vec<(&str, &str)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
 
@@ -104,7 +100,7 @@ impl AdaptableModifier {
         Self { search_tree }
     }
 
-    //derives an AdaptableModifier from a list of rules in Expression and Function form
+    // derives an AdaptableModifier from a list of rules in Expression and Function form
     pub fn from_fn_list(list: Vec<(Expression, ModifierFunction)>) -> Self {
         let mut search_tree = MultiKeyBinarySearchTree::new(Vec::new());
 
@@ -119,11 +115,11 @@ impl AdaptableModifier {
         self.search_tree.insert((expr, func));
     }
 
-    //retrieves the rule which is the closest match with the given expression
+    // retrieves the rule which is the closest match with the given expression
     fn get_rule(&self, expr: &Expression) -> Vec<&(Expression, ModifierFunction)> {
         match self.search_tree.get(expr) {
             Some(list) => {
-                let (mut level, mut new_list) = (8, Vec::new()); //8 is mod magic here
+                let (mut level, mut new_list) = (8, Vec::new()); // 8 is mod magic here
                 list.iter().for_each(|pair| {
                     if let Some(l) = expr.level_eq(&pair.0, &mut LinearMap::new()) {
                         match l.cmp(&level) {
@@ -323,15 +319,15 @@ impl fmt::Display for AdaptableModifier {
     }
 }
 
-//CachingAdaptableModifier: an AdaptableModifier that caches the results of its modifications
+// CachingAdaptableModifier: an AdaptableModifier that caches the results of its modifications
 pub struct CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
     pub modifier: AdaptableModifier,
-    //because modificiation is recursive and repetitive, we memoize the result of modification, to skip false results
+    // because modificiation is recursive and repetitive, we memoize the result of modification, to skip false results
     cache: IndexMap<Expression, bool, S>,
-    //if memoization_limit is Some(n), then the memoizing_map will be halfed after n insertions
+    // if memoization_limit is Some(n), then the memoizing_map will be halfed after n insertions
     limit: Option<usize>,
 }
 
