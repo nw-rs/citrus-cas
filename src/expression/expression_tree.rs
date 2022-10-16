@@ -15,12 +15,12 @@ use crate::{
     Error,
 };
 
-//Numeric: representation of any numeric value
+// Numeric: representation of any numeric value
 #[derive(Debug, Clone, Copy)]
 pub enum Numeric {
     Integer(i32),
     Decimal(f32),
-    Fraction(i32, i32), //might be unnecessary?
+    Fraction(i32, i32), // might be unnecessary?
 }
 
 impl From<Numeric> for f32 {
@@ -103,7 +103,7 @@ impl Hash for Numeric {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Numeric::Integer(i) => i.hash(state),
-            Numeric::Decimal(f) => f.to_bits().hash(state), //rough workaround
+            Numeric::Decimal(f) => f.to_bits().hash(state), // rough workaround
             Numeric::Fraction(n, d) => {
                 n.hash(state);
                 d.hash(state);
@@ -241,17 +241,17 @@ impl fmt::Display for Numeric {
         match self {
             Numeric::Integer(i) => write!(f, "{}", i),
             Numeric::Decimal(d) => write!(f, "{}", d),
-            Numeric::Fraction(r1, r2) => write!(f, "({})/({})", r1, r2), //must always be in the form of (a)/(b), for reinterpretation to work (?)
+            Numeric::Fraction(r1, r2) => write!(f, "({})/({})", r1, r2), // must always be in the form of (a)/(b), for reinterpretation to work (?)
         }
     }
 }
 
-//Atom: the smallest unit of an expression
+// Atom: the smallest unit of an expression
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy, Hash)]
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    //escapes indicate where something in an expression should be replaced:
+    // escapes indicate where something in an expression should be replaced:
     // - A for atoms
     // - F for functions
     // - V for vectors
@@ -272,18 +272,18 @@ impl fmt::Display for Atom {
     }
 }
 
-//Expression: a tree representing a mathematical expression
+// Expression: a tree representing a mathematical expression
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
-    //atoms
+    // atoms
     Atom(Atom),
 
-    //unary operators
+    // unary operators
     Negate(Box<Self>),
     Factorial(Box<Self>),
     Percent(Box<Self>),
 
-    //binary operators
+    // binary operators
     Add(Box<Self>, Box<Self>),
     Subtract(Box<Self>, Box<Self>),
     Multiply(Box<Self>, Box<Self>),
@@ -291,7 +291,7 @@ pub enum Expression {
     Power(Box<Self>, Box<Self>),
     Modulus(Box<Self>, Box<Self>),
 
-    //dynamic operators
+    // dynamic operators
     Function {
         name: String,
         args: Vec<Box<Self>>,
@@ -307,7 +307,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    //reorganizes the expression tree using the given modifier a max of L times, with a modifier that cannot be mutated
+    // reorganizes the expression tree using the given modifier a max of L times, with a modifier that cannot be mutated
     pub fn simplify_im<S: ModifierImmutable, const L: usize>(&mut self, simplifier: &S) {
         for _ in 0..L {
             if !simplifier.modify_immut(self) {
@@ -316,7 +316,7 @@ impl Expression {
         }
     }
 
-    //simplifies, then uses the evaluation modifier on the tree a max of L times, with a modifier that cannot be mutated
+    // simplifies, then uses the evaluation modifier on the tree a max of L times, with a modifier that cannot be mutated
     pub fn evaluate_im<E: ModifierImmutable, S: ModifierImmutable, const L: usize>(
         &self,
         evaluator: &E,
@@ -334,7 +334,7 @@ impl Expression {
         expr
     }
 
-    //evaluates, then uses the approximation modifier on the tree a max of L times, with a modifier that cannot be mutated
+    // evaluates, then uses the approximation modifier on the tree a max of L times, with a modifier that cannot be mutated
     pub fn approximate_im<
         A: ModifierImmutable,
         E: ModifierImmutable,
@@ -358,7 +358,7 @@ impl Expression {
         expr.approximated()
     }
 
-    //reorganizes the expression tree using the given modifier a max of L times
+    // reorganizes the expression tree using the given modifier a max of L times
     pub fn simplify<S: ModifierMutable, const L: usize>(&mut self, simplifier: &mut S) {
         for _ in 0..L {
             if !simplifier.modify_mut(self) {
@@ -367,7 +367,7 @@ impl Expression {
         }
     }
 
-    //simplifies, then uses the evaluation modifier on the tree a max of L times
+    // simplifies, then uses the evaluation modifier on the tree a max of L times
     pub fn evaluate<E: ModifierMutable, S: ModifierMutable, const L: usize>(
         &self,
         evaluator: &mut E,
@@ -385,7 +385,7 @@ impl Expression {
         expr
     }
 
-    //evaluates, then uses the approximation modifier on the tree a max of L times
+    // evaluates, then uses the approximation modifier on the tree a max of L times
     pub fn approximate<
         A: ModifierMutable,
         E: ModifierMutable,
@@ -426,7 +426,7 @@ impl Expression {
         }
     }
 
-    //returns the number of escapes in the other expression, or None if the expressions are not equal
+    // returns the number of escapes in the other expression, or None if the expressions are not equal
     pub fn level_eq(&self, other: &Self, map: &mut LinearMap<Atom, Expression, 8>) -> Option<u8> {
         match (self, other) {
             (e, Expression::Atom(a)) => match a {
@@ -624,7 +624,7 @@ impl Expression {
         }
     }
 
-    //extracts a modification function from the given expression
+    // extracts a modification function from the given expression
     pub fn conversion(self) -> ModifierFunction {
         Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
             (
@@ -708,7 +708,7 @@ impl Expression {
         })
     }
 
-    //uses a template expression to extract the sub-expressions from the given expression
+    // uses a template expression to extract the sub-expressions from the given expression
     pub fn extract_arguments(
         &self,
         template: &Expression,
@@ -923,10 +923,32 @@ impl PartialOrd for Expression {
 }
 
 impl fmt::Display for Expression {
-    //TODO: smarter parentheses, likely using some kind of traversal?
+    // TODO: smarter parentheses, likely using some kind of traversal?
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Atom(a) => write!(f, "{}", a),
+
+            Expression::Negate(e) => write!(f, "-{}", e),
+            Expression::Factorial(e) => write!(f, "{}!", e),
+            Expression::Percent(e) => write!(f, "{}%", e),
+
+            Expression::Add(l, r) => write!(f, "({} + {})", l, r),
+            Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),
+            Expression::Multiply(l, r) => write!(f, "({} * {})", l, r),
+            Expression::Divide(l, r) => write!(f, "({} / {})", l, r),
+            Expression::Power(l, r) => write!(f, "({} ^ {})", l, r),
+            Expression::Modulus(l, r) => write!(f, "({} % {})", l, r),
+
+            Expression::Function { name, args } => {
+                write!(f, "{}(", name)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ")")
+            }
 
             Expression::Vector {
                 backing: vec,
@@ -960,28 +982,6 @@ impl fmt::Display for Expression {
                 }
                 write!(f, "]")
             }
-
-            Expression::Negate(e) => write!(f, "-({})", e),
-            Expression::Factorial(e) => write!(f, "({})!", e),
-            Expression::Percent(e) => write!(f, "({})%", e),
-
-            Expression::Add(l, r) => write!(f, "({} + {})", l, r),
-            Expression::Subtract(l, r) => write!(f, "({} - {})", l, r),
-            Expression::Multiply(l, r) => write!(f, "({} * {})", l, r),
-            Expression::Divide(l, r) => write!(f, "({} / {})", l, r),
-            Expression::Power(l, r) => write!(f, "({} ^ {})", l, r),
-            Expression::Modulus(l, r) => write!(f, "({} % {})", l, r),
-
-            Expression::Function { name, args } => {
-                write!(f, "{}(", name)?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", arg)?;
-                }
-                write!(f, ")")
-            }
         }
     }
 }
@@ -1014,7 +1014,40 @@ mod tests {
 
     #[test]
     fn test_fmt_parse() {
-        //TODO: fix Expression to_string()
+        assert_eq!(
+            Expression::from_str("1 * 3").unwrap(),
+            Expression::from_str(Expression::from_str("1 * 3").unwrap().to_string().as_str())
+                .unwrap()
+        );
+
+        assert_eq!(
+            Expression::from_str("5 / 6").unwrap(),
+            Expression::from_str(Expression::from_str("5 / 6").unwrap().to_string().as_str())
+                .unwrap()
+        );
+
+        assert_eq!(
+            Expression::from_str("5 + 6 + 7 + -8").unwrap(),
+            Expression::from_str(
+                Expression::from_str("5 + 6 + 7 + -8")
+                    .unwrap()
+                    .to_string()
+                    .as_str()
+            )
+            .unwrap()
+        );
+
+        assert_eq!(
+            Expression::from_str("3 + 5 + sin(x) + -6").unwrap(),
+            Expression::from_str(
+                Expression::from_str("3 + 5 + sin(x) + -6")
+                    .unwrap()
+                    .to_string()
+                    .as_str()
+            )
+            .unwrap()
+        );
+
         assert_eq!(
             Expression::from_str("1 * 3 + 5 / 6 + sin(x) + -6").unwrap(),
             Expression::from_str(
@@ -1024,6 +1057,6 @@ mod tests {
                     .as_str()
             )
             .unwrap()
-        )
+        );
     }
 }

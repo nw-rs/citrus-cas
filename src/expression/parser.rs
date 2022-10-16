@@ -1,3 +1,4 @@
+use alloc::vec;
 use alloc::{boxed::Box, string::ToString, vec::Vec};
 
 use nom::bytes::complete::take_while;
@@ -15,7 +16,7 @@ use nom::{
 
 use crate::expression::expression_tree::{Atom, Expression, Numeric};
 
-//TODO: explain parser
+// TODO: explain parser
 
 pub fn parse(input: &str) -> Expression {
     parse_add_sub(input)
@@ -74,16 +75,22 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
                         take_while(|c: char| c.is_alphanumeric()),
                     ),
                 ),
-                preceded(
+                delimited(
                     char('('),
-                    many0(terminated(parse_add_sub, alt((char(','), char(')'))))),
+                    pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
+                    char(')'),
                 ),
             )),
             space0,
         ),
         |(name, arg_list)| Expression::Function {
             name: name.0.to_string() + name.1,
-            args: arg_list.into_iter().map(Box::new).collect(),
+            args: arg_list
+                .0
+                .into_iter()
+                .chain(vec![arg_list.1])
+                .map(Box::new)
+                .collect(),
         },
     )(input)
 }
@@ -92,15 +99,21 @@ fn parse_vector(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
             space0,
-            preceded(
+            delimited(
                 char('<'),
-                many0(terminated(parse_add_sub, alt((char(','), char('>'))))),
+                pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
+                char('>'),
             ),
             space0,
         ),
         |vector| Expression::Vector {
-            size: vector.len() as u8,
-            backing: vector.into_iter().map(Box::new).collect(),
+            size: vector.0.len() as u8 + 1,
+            backing: vector
+                .0
+                .into_iter()
+                .chain(vec![vector.1])
+                .map(Box::new)
+                .collect(),
         },
     )(input)
 }
