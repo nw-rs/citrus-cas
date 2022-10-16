@@ -1,13 +1,13 @@
 use crate::expression::expression_tree::Expression;
 
-//Modifier: objects which can modify an expression
+// Modifier: objects which can modify an expression
 pub trait ModifierImmutable {
-    fn modify_immut(&self, expression: &mut Expression) -> bool; //returns true if modified
+    fn modify_immut(&self, expression: &mut Expression) -> bool; // returns true if modified
 }
 
-//modifiers which can modify themselves
+// modifiers which can modify themselves
 pub trait ModifierMutable {
-    fn modify_mut(&mut self, expression: &mut Expression) -> bool; //returns true if modified
+    fn modify_mut(&mut self, expression: &mut Expression) -> bool; // returns true if modified
 }
 
 pub mod adaptable_modifier;
@@ -70,14 +70,14 @@ mod tests {
         };
 
         assert_eq!(
-            expr.approximate_im::<SimpleMod, NothingMod, NothingMod, 50>(
+            expr.evaluate_im::<SimpleMod, NothingMod, NothingMod, 50>(
                 &SimpleMod,
                 &NothingMod,
                 &NothingMod
-            ),
-            Ok(Expression::Atom(Atom::Numeric(Numeric::Decimal(
-                0.91294525073
-            ))))
+            )
+            .1
+            .unwrap(),
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(0.91294525073)))
         );
     }
 }

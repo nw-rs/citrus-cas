@@ -9,12 +9,12 @@ use crate::expression::expression_tree::{Atom, Expression, Numeric};
 
 use super::adaptable_modifier::{AdaptableModifier, ModifierFunction};
 
-//an AdaptableModifier that simplifies an expression tree
+// an AdaptableModifier that simplifies an expression tree
 pub fn simplifier() -> AdaptableModifier {
     reorganize() + reduce() + numeric_simplify()
 }
 
-//an AdaptableModifier that can reorganize the expression tree
+// an AdaptableModifier that can reorganize the expression tree
 pub fn reorganize() -> AdaptableModifier {
     let num = AdaptableModifier::from_fn_list(vec![
         (
@@ -199,7 +199,7 @@ fn denegate_internal(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool)
     }
 }
 
-//an AdaptableModifier that reduces identities in an expression tree
+// an AdaptableModifier that reduces identities in an expression tree
 pub fn reduce() -> AdaptableModifier {
     AdaptableModifier::from_str_list(vec![
         ("_*1 + _*1", "2 * _*1"),
@@ -232,7 +232,7 @@ pub fn reduce() -> AdaptableModifier {
     ])
 }
 
-//an AdaptableModifier that simplifies numerics in an expression tree
+// an AdaptableModifier that simplifies numerics in an expression tree
 pub fn numeric_simplify() -> AdaptableModifier {
     AdaptableModifier::from_fn_list(vec![
         (
@@ -348,12 +348,12 @@ fn pow_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     }
 }
 
-//An AdpatableModifier that evaluates an expression
+// an AdpatableModifier that evaluates an expression
 pub fn evaluator() -> AdaptableModifier {
     AdaptableModifier::from_str_list(vec![])
 }
 
-//An AdaptableModifer that approximates an expression
+// an AdaptableModifer that approximates an expression
 pub fn approximator() -> AdaptableModifier {
     num_approx_helper() + trig_approx() + log_approx() + numeric_fun_approx() + calculus_approx()
 }
@@ -514,12 +514,12 @@ pub fn numeric_fun_approx() -> AdaptableModifier {
 pub fn calculus_approx() -> AdaptableModifier {
     AdaptableModifier::from_fn_list(vec![
         (
-            //diff(expression, for this variable, at this value)
+            // diff(expression, for this variable, at this value)
             "diff(_*1, _*2, _A1)".parse::<Expression>().unwrap(),
             Box::new(diff_approx),
         ),
         (
-            //integrate(expression, for this variable, from this value, to this value)
+            // integrate(expression, for this variable, from this value, to this value)
             "int(_*1, _*2, _A1, _A2)".parse::<Expression>().unwrap(),
             Box::new(int_approx),
         ),
@@ -591,7 +591,7 @@ fn value_replace(expr: &Expression, var: &Expression, val: &Expression) -> Expre
     }
 }
 
-//approximate the derivative of a function
+// approximate the derivative of a function
 fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     let expr = map.get(&Atom::Escape('*', 1)).unwrap();
     let var = map.get(&Atom::Escape('*', 2)).unwrap();
@@ -601,7 +601,7 @@ fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
     match val {
         Expression::Atom(Atom::Numeric(n)) => (
-            //symmetric difference quotient at h = 0.0001
+            // symmetric difference quotient at h = 0.0001
             Expression::Divide(
                 Box::new(Expression::Subtract(
                     Box::new(value_replace(
@@ -626,15 +626,15 @@ fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     }
 }
 
-//approximate the integral of a function
+// approximate the integral of a function
 fn int_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     let expr = map.get(&Atom::Escape('*', 1)).unwrap();
     let var = map.get(&Atom::Escape('*', 2)).unwrap();
     let val1 = map.get(&Atom::Escape('A', 1)).unwrap();
     let val2 = map.get(&Atom::Escape('A', 2)).unwrap();
 
-    //TODO: use a more accurate approximation
-    //trapeziodal rule: (b-a)*((f(a)+f(b))/2)
+    // TODO: use a more accurate approximation
+    // trapeziodal rule: (b-a)*((f(a)+f(b))/2)
     match (val1, val2) {
         (Expression::Atom(Atom::Numeric(_)), Expression::Atom(Atom::Numeric(_))) => (
             Expression::Multiply(
@@ -659,8 +659,8 @@ fn int_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     }
 }
 
-//TODO: implement limit approximation
-//approximate the limit of a function
+// TODO: implement limit approximation
+// approximate the limit of a function
 /* fn limit_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     unimplemented!()
 } */
@@ -831,7 +831,7 @@ mod tests {
         let mut expr7 = "5.4 * x / 1.2".parse::<Expression>().unwrap();
         expr7.simplify_im::<AdaptableModifier, 100>(&num);
 
-        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); //numeric_simplify shouldn't reorganize the expression
+        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); // numeric_simplify shouldn't reorganize the expression
     }
 
     #[test]
@@ -984,7 +984,7 @@ mod tests {
         let mut expr7 = "5.4 * x / 1.2".parse::<Expression>().unwrap();
         expr7.simplify_im::<AdaptableModifier, 100>(&simp);
 
-        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); //numeric_simplify shouldn't reorganize the expression
+        assert_eq!(expr7, "5.4 * x / 1.2".parse::<Expression>().unwrap()); // numeric_simplify shouldn't reorganize the expression
     }
 
     #[test]
@@ -1022,9 +1022,10 @@ mod tests {
         let simp = simplifier();
 
         let form = |expr: &Expression| {
-            expr.approximate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
+            expr.evaluate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
                 &trig, &eval, &simp,
             )
+            .1
             .unwrap()
         };
 
@@ -1061,73 +1062,72 @@ mod tests {
         let simp = simplifier();
 
         let form = |expr: &Expression| {
-            expr.approximate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
+            expr.evaluate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
                 &log, &eval, &simp,
             )
+            .1
+            .unwrap()
         };
 
         let expr1 = "log(10)".parse::<Expression>().unwrap();
         let expr1_comp = form(&expr1);
 
-        assert_eq!(expr1_comp, Ok("2.302585093".parse::<Expression>().unwrap()));
+        assert_eq!(expr1_comp, "2.302585093".parse::<Expression>().unwrap());
 
         let expr2 = "log(100)".parse::<Expression>().unwrap();
         let expr2_comp = form(&expr2);
 
-        assert_eq!(expr2_comp, Ok("4.605170186".parse::<Expression>().unwrap()));
+        assert_eq!(expr2_comp, "4.605170186".parse::<Expression>().unwrap());
 
         let expr3 = "log(1000)".parse::<Expression>().unwrap();
         let expr3_comp = form(&expr3);
 
-        assert_eq!(expr3_comp, Ok("6.907755278".parse::<Expression>().unwrap()));
+        assert_eq!(expr3_comp, "6.907755278".parse::<Expression>().unwrap());
 
         let expr4 = "log(10000)".parse::<Expression>().unwrap();
         let expr4_comp = form(&expr4);
 
-        assert_eq!(expr4_comp, Ok("9.210340371".parse::<Expression>().unwrap()));
+        assert_eq!(expr4_comp, "9.210340371".parse::<Expression>().unwrap());
 
         let expr5 = "log(100000)".parse::<Expression>().unwrap();
         let expr5_comp = form(&expr5);
 
-        assert_eq!(expr5_comp, Ok("11.51292546".parse::<Expression>().unwrap()));
+        assert_eq!(expr5_comp, "11.51292546".parse::<Expression>().unwrap());
 
         let expr6 = "log(1000000)".parse::<Expression>().unwrap();
         let expr6_comp = form(&expr6);
 
-        assert_eq!(expr6_comp, Ok("13.81551055".parse::<Expression>().unwrap()));
+        assert_eq!(expr6_comp, "13.81551055".parse::<Expression>().unwrap());
 
         let expr7 = "log(10000000)".parse::<Expression>().unwrap();
         let expr7_comp = form(&expr7);
 
-        assert_eq!(expr7_comp, Ok("16.11809564".parse::<Expression>().unwrap()));
+        assert_eq!(expr7_comp, "16.11809564".parse::<Expression>().unwrap());
 
         let expr8 = "log2(10)".parse::<Expression>().unwrap();
         let expr8_comp = form(&expr8);
 
-        assert_eq!(expr8_comp, Ok("3.321928095".parse::<Expression>().unwrap()));
+        assert_eq!(expr8_comp, "3.321928095".parse::<Expression>().unwrap());
 
         let expr9 = "log10(10)".parse::<Expression>().unwrap();
         let expr9_comp = form(&expr9);
 
-        assert_eq!(expr9_comp, Ok("1".parse::<Expression>().unwrap()));
+        assert_eq!(expr9_comp, "1".parse::<Expression>().unwrap());
 
         let expr10 = "exp(10)".parse::<Expression>().unwrap();
         let expr10_comp = form(&expr10);
 
-        assert_eq!(
-            expr10_comp,
-            Ok("22026.46579".parse::<Expression>().unwrap())
-        );
+        assert_eq!(expr10_comp, "22026.46579".parse::<Expression>().unwrap());
 
         let expr11 = "exp2(10)".parse::<Expression>().unwrap();
         let expr11_comp = form(&expr11);
 
-        assert_eq!(expr11_comp, Ok("1024".parse::<Expression>().unwrap()));
+        assert_eq!(expr11_comp, "1024".parse::<Expression>().unwrap());
 
         let expr12 = "exp10(2)".parse::<Expression>().unwrap();
         let expr12_comp = form(&expr12);
 
-        assert_eq!(expr12_comp, Ok("100".parse::<Expression>().unwrap()));
+        assert_eq!(expr12_comp, "100".parse::<Expression>().unwrap());
     }
 
     #[test]
@@ -1137,65 +1137,67 @@ mod tests {
         let simp = simplifier();
 
         let form = |expr: &Expression| {
-            expr.approximate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
+            expr.evaluate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
                 &num, &eval, &simp,
             )
+            .1
+            .unwrap()
         };
 
         let expr1 = "abs(-10)".parse::<Expression>().unwrap();
         let expr1_comp = form(&expr1);
 
-        assert_eq!(expr1_comp, Ok("10".parse::<Expression>().unwrap()));
+        assert_eq!(expr1_comp, "10".parse::<Expression>().unwrap());
 
         let expr2 = "abs(10)".parse::<Expression>().unwrap();
         let expr2_comp = form(&expr2);
 
-        assert_eq!(expr2_comp, Ok("10".parse::<Expression>().unwrap()));
+        assert_eq!(expr2_comp, "10".parse::<Expression>().unwrap());
 
         let expr3 = "sqrt(4)".parse::<Expression>().unwrap();
         let expr3_comp = form(&expr3);
 
-        assert_eq!(expr3_comp, Ok("2".parse::<Expression>().unwrap()));
+        assert_eq!(expr3_comp, "2".parse::<Expression>().unwrap());
 
         let expr4 = "sqrt(16)".parse::<Expression>().unwrap();
         let expr4_comp = form(&expr4);
 
-        assert_eq!(expr4_comp, Ok("4".parse::<Expression>().unwrap()));
+        assert_eq!(expr4_comp, "4".parse::<Expression>().unwrap());
 
         let expr5 = "cbrt(8)".parse::<Expression>().unwrap();
         let expr5_comp = form(&expr5);
 
-        assert_eq!(expr5_comp, Ok("2".parse::<Expression>().unwrap()));
+        assert_eq!(expr5_comp, "2".parse::<Expression>().unwrap());
 
         let expr6 = "ceil(2.5)".parse::<Expression>().unwrap();
         let expr6_comp = form(&expr6);
 
-        assert_eq!(expr6_comp, Ok("3".parse::<Expression>().unwrap()));
+        assert_eq!(expr6_comp, "3".parse::<Expression>().unwrap());
 
         let expr7 = "floor(2.5)".parse::<Expression>().unwrap();
         let expr7_comp = form(&expr7);
 
-        assert_eq!(expr7_comp, Ok("2".parse::<Expression>().unwrap()));
+        assert_eq!(expr7_comp, "2".parse::<Expression>().unwrap());
 
         let expr8 = "round(2.5)".parse::<Expression>().unwrap();
         let expr8_comp = form(&expr8);
 
-        assert_eq!(expr8_comp, Ok("3".parse::<Expression>().unwrap()));
+        assert_eq!(expr8_comp, "3".parse::<Expression>().unwrap());
 
         let expr9 = "round(2.4)".parse::<Expression>().unwrap();
         let expr9_comp = form(&expr9);
 
-        assert_eq!(expr9_comp, Ok("2".parse::<Expression>().unwrap()));
+        assert_eq!(expr9_comp, "2".parse::<Expression>().unwrap());
 
         let expr10 = "trunc(2.6)".parse::<Expression>().unwrap();
         let expr10_comp = form(&expr10);
 
-        assert_eq!(expr10_comp, Ok("2".parse::<Expression>().unwrap()));
+        assert_eq!(expr10_comp, "2".parse::<Expression>().unwrap());
 
         let expr11 = "trunc(2.4)".parse::<Expression>().unwrap();
         let expr11_comp = form(&expr11);
 
-        assert_eq!(expr11_comp, Ok("2".parse::<Expression>().unwrap()));
+        assert_eq!(expr11_comp, "2".parse::<Expression>().unwrap());
     }
 
     #[test]
@@ -1205,29 +1207,31 @@ mod tests {
         let simp = simplifier();
 
         let form = |expr: &Expression| {
-            expr.approximate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
+            expr.evaluate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
                 &num, &eval, &simp,
             )
+            .1
+            .unwrap()
         };
         let expr1 = "diff(x^2, x, 2)".parse::<Expression>().unwrap();
         let expr1_comp = form(&expr1);
 
-        assert_eq!(expr1_comp, Ok("3.9982796".parse::<Expression>().unwrap())); //should be 4, but approx isn't exact
+        assert_eq!(expr1_comp, "3.9982796".parse::<Expression>().unwrap()); // should be 4, but approx isn't exact
 
         let expr2 = "diff(x^2, x, 3)".parse::<Expression>().unwrap();
         let expr2_comp = form(&expr2);
 
-        assert_eq!(expr2_comp, Ok("5.993843".parse::<Expression>().unwrap())); //should be 6, but approx isn't exact
+        assert_eq!(expr2_comp, "5.993843".parse::<Expression>().unwrap()); // should be 6, but approx isn't exact
 
         let expr3 = "int(x^2, x, 4, 6)".parse::<Expression>().unwrap();
         let expr3_comp = form(&expr3);
 
-        assert_eq!(expr3_comp, Ok("52".parse::<Expression>().unwrap()));
+        assert_eq!(expr3_comp, "52".parse::<Expression>().unwrap());
 
         let expr4 = "int(2*x^2-x, x, 4, 6)".parse::<Expression>().unwrap();
         let expr4_comp = form(&expr4);
 
-        assert_eq!(expr4_comp, Ok("94".parse::<Expression>().unwrap())); //should be 91.33333333333333, but approx isn't exact
+        assert_eq!(expr4_comp, "94".parse::<Expression>().unwrap()); // should be 91.33333333333333, but approx isn't exact
     }
 
     #[test]
@@ -1237,54 +1241,56 @@ mod tests {
         let simp = simplifier();
 
         let form = |expr: &Expression| {
-            expr.approximate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
+            expr.evaluate_im::<AdaptableModifier, AdaptableModifier, AdaptableModifier, 100>(
                 &num, &eval, &simp,
             )
+            .1
+            .unwrap()
         };
 
         let expr1 = "sin(90) + cos(90)".parse::<Expression>().unwrap();
         let expr1_comp = form(&expr1);
 
-        assert_eq!(expr1_comp, Ok("0.44592303".parse::<Expression>().unwrap()));
+        assert_eq!(expr1_comp, "0.44592303".parse::<Expression>().unwrap());
 
         let expr2 = "tan(90) + log(5)".parse::<Expression>().unwrap();
         let expr2_comp = form(&expr2);
 
-        assert_eq!(expr2_comp, Ok("-0.38576245".parse::<Expression>().unwrap()));
+        assert_eq!(expr2_comp, "-0.38576245".parse::<Expression>().unwrap());
 
         let expr3 = "log(10000000) + exp(10)".parse::<Expression>().unwrap();
         let expr3_comp = form(&expr3);
 
-        assert_eq!(expr3_comp, Ok("22042.582".parse::<Expression>().unwrap()));
+        assert_eq!(expr3_comp, "22042.582".parse::<Expression>().unwrap());
 
         let expr4 = "exp2(10) + abs(-7)".parse::<Expression>().unwrap();
         let expr4_comp = form(&expr4);
 
-        assert_eq!(expr4_comp, Ok("1031".parse::<Expression>().unwrap()));
+        assert_eq!(expr4_comp, "1031".parse::<Expression>().unwrap());
 
         let expr5 = "sqrt(4) + cbrt(8)".parse::<Expression>().unwrap();
         let expr5_comp = form(&expr5);
 
-        assert_eq!(expr5_comp, Ok("4".parse::<Expression>().unwrap()));
+        assert_eq!(expr5_comp, "4".parse::<Expression>().unwrap());
 
         let expr6 = "ceil(2.5) + floor(2.5)".parse::<Expression>().unwrap();
         let expr6_comp = form(&expr6);
 
-        assert_eq!(expr6_comp, Ok("5".parse::<Expression>().unwrap()));
+        assert_eq!(expr6_comp, "5".parse::<Expression>().unwrap());
 
         let expr7 = "round(log(78))".parse::<Expression>().unwrap();
         let expr7_comp = form(&expr7);
 
-        assert_eq!(expr7_comp, Ok("4".parse::<Expression>().unwrap()));
+        assert_eq!(expr7_comp, "4".parse::<Expression>().unwrap());
 
         let expr8 = "diff(log(x), x, 4)".parse::<Expression>().unwrap();
         let expr8_comp = form(&expr8);
 
-        assert_eq!(expr8_comp, Ok("0.2503395".parse::<Expression>().unwrap())); //should be 0.25, but approx isn't exact
+        assert_eq!(expr8_comp, "0.2503395".parse::<Expression>().unwrap()); // should be 0.25, but approx isn't exact
 
         let expr9 = "int(log(x), x, 4, 6)".parse::<Expression>().unwrap();
         let expr9_comp = form(&expr9);
 
-        assert_eq!(expr9_comp, Ok("3.1780539".parse::<Expression>().unwrap())); //should be ~3.20537, but approx isn't exact
+        assert_eq!(expr9_comp, "3.1780539".parse::<Expression>().unwrap()); // should be ~3.20537, but approx isn't exact
     }
 }

@@ -317,25 +317,7 @@ impl Expression {
     }
 
     // simplifies, then uses the evaluation modifier on the tree a max of L times, with a modifier that cannot be mutated
-    pub fn evaluate_im<E: ModifierImmutable, S: ModifierImmutable, const L: usize>(
-        &self,
-        evaluator: &E,
-        simplifier: &S,
-    ) -> Expression {
-        let mut expr = self.clone();
-
-        for _ in 0..L {
-            expr.simplify_im::<S, L>(simplifier);
-            if !evaluator.modify_immut(&mut expr) {
-                break;
-            }
-        }
-
-        expr
-    }
-
-    // evaluates, then uses the approximation modifier on the tree a max of L times, with a modifier that cannot be mutated
-    pub fn approximate_im<
+    pub fn evaluate_im<
         A: ModifierImmutable,
         E: ModifierImmutable,
         S: ModifierImmutable,
@@ -345,17 +327,36 @@ impl Expression {
         approximator: &A,
         evaluator: &E,
         simplifier: &S,
-    ) -> Result<Expression, crate::Error> {
+    ) -> (Expression, Option<Expression>) {
         let mut expr = self.clone();
 
         for _ in 0..L {
-            expr = expr.evaluate_im::<E, S, L>(evaluator, simplifier);
-            if !approximator.modify_immut(&mut expr) {
+            expr.simplify_im::<S, L>(simplifier);
+
+            if !evaluator.modify_immut(&mut expr) {
                 break;
             }
         }
 
-        expr.approximated()
+        let mut approx = expr.clone();
+
+        for _ in 0..L {
+            approx.simplify_im::<S, L>(simplifier);
+
+            if !(evaluator.modify_immut(&mut approx) || approximator.modify_immut(&mut approx)) {
+                break;
+            }
+        }
+
+        if let Ok(a) = approx.approximated() {
+            if expr == a {
+                (expr, None)
+            } else {
+                (expr, Some(a))
+            }
+        } else {
+            (expr, None)
+        }
     }
 
     // reorganizes the expression tree using the given modifier a max of L times
@@ -368,45 +369,41 @@ impl Expression {
     }
 
     // simplifies, then uses the evaluation modifier on the tree a max of L times
-    pub fn evaluate<E: ModifierMutable, S: ModifierMutable, const L: usize>(
+    pub fn evaluate<A: ModifierMutable, E: ModifierMutable, S: ModifierMutable, const L: usize>(
         &self,
+        approximator: &mut A,
         evaluator: &mut E,
         simplifier: &mut S,
-    ) -> Expression {
+    ) -> (Expression, Option<Expression>) {
         let mut expr = self.clone();
 
         for _ in 0..L {
             expr.simplify::<S, L>(simplifier);
+
             if !evaluator.modify_mut(&mut expr) {
                 break;
             }
         }
 
-        expr
-    }
-
-    // evaluates, then uses the approximation modifier on the tree a max of L times
-    pub fn approximate<
-        A: ModifierMutable,
-        E: ModifierMutable,
-        S: ModifierMutable,
-        const L: usize,
-    >(
-        &self,
-        approximator: &mut A,
-        evaluator: &mut E,
-        simplifier: &mut S,
-    ) -> Result<Expression, crate::Error> {
-        let mut expr = self.clone();
+        let mut approx = expr.clone();
 
         for _ in 0..L {
-            expr = expr.evaluate::<E, S, L>(evaluator, simplifier);
-            if !approximator.modify_mut(&mut expr) {
+            approx.simplify::<S, L>(simplifier);
+
+            if !(evaluator.modify_mut(&mut approx) || approximator.modify_mut(&mut approx)) {
                 break;
             }
         }
 
-        expr.approximated()
+        if let Ok(a) = approx.approximated() {
+            if expr == a {
+                (expr, None)
+            } else {
+                (expr, Some(a))
+            }
+        } else {
+            (expr, None)
+        }
     }
 
     fn approximated(self) -> Result<Expression, crate::Error> {
@@ -637,7 +634,7 @@ impl Expression {
                         let mut args = Vec::new();
 
                         for arg in a.clone() {
-                            args.push(Box::new(arg.conversion()(map).0)); //vec overflow is impossible here
+                            args.push(Box::new(arg.conversion()(map).0)); // vec overflow is impossible here
                         }
 
                         Expression::Function {
@@ -830,7 +827,7 @@ impl Div for Expression {
 }
 
 impl PartialOrd for Expression {
-    //escapes are equivalent to their given expression types
+    // escapes are equivalent to their given expression types
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Expression::Atom(_), _) | (_, Expression::Atom(_)) => Some(Ordering::Equal),
