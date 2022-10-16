@@ -1,7 +1,7 @@
 use core::{
     fmt,
-    ops::{Add, AddAssign},
     hash::BuildHasher,
+    ops::{Add, AddAssign},
 };
 
 use alloc::{boxed::Box, vec, vec::Vec};
@@ -101,9 +101,7 @@ impl AdaptableModifier {
             ));
         }
 
-        Self {
-            search_tree,
-        }
+        Self { search_tree }
     }
 
     //derives an AdaptableModifier from a list of rules in Expression and Function form
@@ -114,9 +112,7 @@ impl AdaptableModifier {
             search_tree.insert((expression, function));
         }
 
-        Self {
-            search_tree,
-        }
+        Self { search_tree }
     }
 
     pub fn insert_rule(&mut self, expr: Expression, func: ModifierFunction) {
@@ -328,8 +324,10 @@ impl fmt::Display for AdaptableModifier {
 }
 
 //CachingAdaptableModifier: an AdaptableModifier that caches the results of its modifications
-struct CachingAdaptableMod<S> 
-where S: Default + BuildHasher {
+struct CachingAdaptableMod<S>
+where
+    S: Default + BuildHasher,
+{
     pub modifier: AdaptableModifier,
     //because modificiation is recursive and repetitive, we memoize the result of modification, to skip false results
     cache: IndexMap<Expression, bool, S>,
@@ -338,7 +336,9 @@ where S: Default + BuildHasher {
 }
 
 impl<S> CachingAdaptableMod<S>
-where S: Default + BuildHasher {
+where
+    S: Default + BuildHasher,
+{
     pub fn from_str_list(rules: Vec<(&str, &str)>, limit: Option<usize>) -> Self {
         let modifier = AdaptableModifier::from_str_list(rules);
 
@@ -366,9 +366,11 @@ where S: Default + BuildHasher {
 }
 
 impl<S> ModifierMutable for CachingAdaptableMod<S>
-where S: Default + BuildHasher {
+where
+    S: Default + BuildHasher,
+{
     fn modify_mut(&mut self, expression: &mut Expression) -> bool {
-        if let Some(_) = self.cache.get(expression) {
+        if self.cache.get(expression).is_some() {
             false
         } else {
             let mem_save = expression.clone();
@@ -378,10 +380,10 @@ where S: Default + BuildHasher {
             if !modified {
                 if let Some(limit) = self.limit {
                     if self.cache.len() >= limit {
-                        self.cache.drain(limit/2..limit);
+                        self.cache.drain(limit / 2..limit);
                     }
                 }
-                
+
                 self.cache.insert(mem_save, false);
             }
 
@@ -391,7 +393,9 @@ where S: Default + BuildHasher {
 }
 
 impl<S> Add<AdaptableModifier> for CachingAdaptableMod<S>
-where S: Default + BuildHasher {
+where
+    S: Default + BuildHasher,
+{
     type Output = Self;
 
     fn add(mut self, other: AdaptableModifier) -> Self {
@@ -402,14 +406,18 @@ where S: Default + BuildHasher {
 }
 
 impl<S> AddAssign<AdaptableModifier> for CachingAdaptableMod<S>
-where S: Default + BuildHasher {
+where
+    S: Default + BuildHasher,
+{
     fn add_assign(&mut self, other: AdaptableModifier) {
         self.modifier += other;
     }
 }
 
 impl<S> Add for CachingAdaptableMod<S>
-where S: Default + BuildHasher {
+where
+    S: Default + BuildHasher,
+{
     type Output = Self;
 
     fn add(mut self, other: Self) -> Self {
@@ -420,7 +428,9 @@ where S: Default + BuildHasher {
 }
 
 impl<S> AddAssign for CachingAdaptableMod<S>
-where S: Default + BuildHasher {
+where
+    S: Default + BuildHasher,
+{
     fn add_assign(&mut self, other: Self) {
         self.modifier += other.modifier;
     }
@@ -432,13 +442,10 @@ mod tests {
     use core::str::FromStr;
     use heapless::LinearMap;
 
-    #[cfg(feature = "std")]
-    use std::collections::hash_map::DefaultHasher;
-
     use super::{AdaptableModifier, ModifierImmutable};
     use crate::{
         expression::expression_tree::{Atom, Expression},
-        modifier::{ModifierMutable, adaptable_modifier::CachingAdaptableMod},
+        modifier::{adaptable_modifier::CachingAdaptableMod, ModifierMutable},
     };
 
     #[test]
@@ -934,7 +941,10 @@ mod tests {
     fn test_caching_am() {
         use std::collections::hash_map::RandomState;
 
-        let mut modifier = CachingAdaptableMod::<RandomState>::from_str_list(vec![("_*1 - _*2", "_*1 + -_*2")], None);
+        let mut modifier = CachingAdaptableMod::<RandomState>::from_str_list(
+            vec![("_*1 - _*2", "_*1 + -_*2")],
+            None,
+        );
 
         let mut expr1 = Expression::from_str("1 - 2").unwrap();
         let expected_expr1 = Expression::from_str("1 + -2").unwrap();
