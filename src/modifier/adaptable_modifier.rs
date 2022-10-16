@@ -324,7 +324,7 @@ impl fmt::Display for AdaptableModifier {
 }
 
 //CachingAdaptableModifier: an AdaptableModifier that caches the results of its modifications
-struct CachingAdaptableMod<S>
+struct CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -335,7 +335,7 @@ where
     limit: Option<usize>,
 }
 
-impl<S> CachingAdaptableMod<S>
+impl<S> CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -365,7 +365,7 @@ where
     }
 }
 
-impl<S> ModifierMutable for CachingAdaptableMod<S>
+impl<S> ModifierMutable for CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -392,7 +392,7 @@ where
     }
 }
 
-impl<S> Add<AdaptableModifier> for CachingAdaptableMod<S>
+impl<S> Add<AdaptableModifier> for CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -405,7 +405,7 @@ where
     }
 }
 
-impl<S> AddAssign<AdaptableModifier> for CachingAdaptableMod<S>
+impl<S> AddAssign<AdaptableModifier> for CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -414,7 +414,7 @@ where
     }
 }
 
-impl<S> Add for CachingAdaptableMod<S>
+impl<S> Add for CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -427,7 +427,7 @@ where
     }
 }
 
-impl<S> AddAssign for CachingAdaptableMod<S>
+impl<S> AddAssign for CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
@@ -445,7 +445,7 @@ mod tests {
     use super::{AdaptableModifier, ModifierImmutable};
     use crate::{
         expression::expression_tree::{Atom, Expression},
-        modifier::{adaptable_modifier::CachingAdaptableMod, ModifierMutable},
+        modifier::{adaptable_modifier::CachingAdaptableModifier, ModifierMutable},
     };
 
     #[test]
@@ -941,14 +941,14 @@ mod tests {
     fn test_caching_am() {
         use std::collections::hash_map::RandomState;
 
-        let mut modifier = CachingAdaptableMod::<RandomState>::from_str_list(
+        let mut modifier = CachingAdaptableModifier::<RandomState>::from_str_list(
             vec![("_*1 - _*2", "_*1 + -_*2")],
             None,
         );
 
         let mut expr1 = Expression::from_str("1 - 2").unwrap();
         let expected_expr1 = Expression::from_str("1 + -2").unwrap();
-        expr1.simplify::<CachingAdaptableMod<RandomState>, 50>(&mut modifier);
+        expr1.simplify::<CachingAdaptableModifier<RandomState>, 50>(&mut modifier);
 
         assert_eq!(expr1, expected_expr1);
     }
