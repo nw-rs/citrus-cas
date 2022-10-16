@@ -211,7 +211,7 @@ impl ModifierMutable for AdaptableModifier {
                 size: _,
             } => {
                 for e in vec {
-                    modified = self.modify_mut(e) || modified;
+                    modified = self.modify_mut(e);
                 }
             }
             Expression::Matrix {
@@ -219,13 +219,13 @@ impl ModifierMutable for AdaptableModifier {
                 shape: (_, _),
             } => {
                 for e in vec {
-                    modified = self.modify_mut(e) || modified;
+                    modified = self.modify_mut(e);
                 }
             }
 
             Expression::Function { name: _, args: a } => {
                 for expr in a {
-                    modified = self.modify_mut(expr) || modified;
+                    modified = self.modify_mut(expr);
                 }
             }
 
