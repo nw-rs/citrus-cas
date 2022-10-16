@@ -432,10 +432,13 @@ mod tests {
     use core::str::FromStr;
     use heapless::LinearMap;
 
+    #[cfg(feature = "std")]
+    use std::collections::hash_map::DefaultHasher;
+
     use super::{AdaptableModifier, ModifierImmutable};
     use crate::{
         expression::expression_tree::{Atom, Expression},
-        modifier::ModifierMutable,
+        modifier::{ModifierMutable, adaptable_modifier::CachingAdaptableMod},
     };
 
     #[test]
@@ -924,5 +927,19 @@ mod tests {
         modifier2.modify_mut(&mut expr_mut);
 
         assert_eq!(expr_mut, expected_expr);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_caching_am() {
+        use std::collections::hash_map::RandomState;
+
+        let mut modifier = CachingAdaptableMod::<RandomState>::from_str_list(vec![("_*1 - _*2", "_*1 + -_*2")], None);
+
+        let mut expr1 = Expression::from_str("1 - 2").unwrap();
+        let expected_expr1 = Expression::from_str("1 + -2").unwrap();
+        expr1.simplify::<CachingAdaptableMod<RandomState>, 50>(&mut modifier);
+
+        assert_eq!(expr1, expected_expr1);
     }
 }
