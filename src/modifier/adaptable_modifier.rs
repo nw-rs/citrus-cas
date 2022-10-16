@@ -324,7 +324,7 @@ impl fmt::Display for AdaptableModifier {
 }
 
 //CachingAdaptableModifier: an AdaptableModifier that caches the results of its modifications
-struct CachingAdaptableModifier<S>
+pub struct CachingAdaptableModifier<S>
 where
     S: Default + BuildHasher,
 {
