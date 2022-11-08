@@ -42,12 +42,11 @@ pub fn reorganize() -> AdaptableModifier {
     let shift = AdaptableModifier::from_str_list(vec![
         ("_*1 + (_*2 + _*3)", "_*1 + _*2 + _*3"),
         ("_*1 + (_*2 - _*3)", "_*1 + _*2 - _*3"),
-        ("_*1 - (_*2 + _*3)", "_*1 - _*2 + _*3"),
-        ("_*1 - (_*2 - _*3)", "_*1 - _*2 - _*3"),
+        ("_*1 - (_*2 + _*3)", "_*1 - _*2 - _*3"),
+        ("_*1 - (_*2 - _*3)", "_*1 - _*2 + _*3"),
         ("_*1 * (_*2 * _*3)", "_*1 * _*2 * _*3"),
         ("_*1 * (_*2 / _*3)", "_*1 * _*2 / _*3"),
-        ("_*1 / (_*2 * _*3)", "_*1 / _*2 * _*3"),
-        ("_*1 / (_*2 / _*3)", "_*1 / _*2 / _*3"),
+        ("(_*1 / _*2) / _*3", "_*1 / (_*2 * _*3)"),
     ]);
 
     let atom_func = AdaptableModifier::from_str_list(vec![
@@ -255,11 +254,13 @@ pub fn numeric_simplify() -> AdaptableModifier {
             "_A1 ^ _A2".parse::<Expression>().unwrap(),
             Box::new(pow_numeric),
         ),
-        /*(
+        /*
+        (
             "_A1 % _A2".parse::<Expression>().unwrap(),
             Box::new(mod_numeric)
         ),
-        ("_A1!".parse::<Expression>().unwrap(), Box::new(fact_numeric)), */
+        ("_A1!".parse::<Expression>().unwrap(), Box::new(fact_numeric)), 
+        */
     ])
 }
 
