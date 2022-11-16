@@ -1009,11 +1009,15 @@ mod tests {
 
         assert_eq!(expr3, "12 + 3 * x".parse::<Expression>().unwrap());
 
-        // this is _*1 - _*1, but I'm guessing that the Vectors are fucking up the equality
-        /* let mut expr4 = "sin(x + 5 - 2 * x) - sin(5 - x)".parse::<Expression>().unwrap();
-        expr4.simplify::<AdaptableModifier, 100>(&simplify());
+        // this is broken because PartialOrd is not reversible in the current backing of AdaptableModifier
+        /*
+        let mut expr4 = "sin(x + 5 - 2 * x) - sin(5 - x)"
+            .parse::<Expression>()
+            .unwrap();
+        expr4.simplify_im::<AdaptableModifier, 100>(&simp);
 
-        assert_eq!(expr4, "0".parse::<Expression>().unwrap()); */
+        assert_eq!(expr4, "0".parse::<Expression>().unwrap());
+        */
     }
 
     #[test]
