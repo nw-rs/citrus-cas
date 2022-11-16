@@ -259,7 +259,7 @@ pub fn numeric_simplify() -> AdaptableModifier {
             "_A1 % _A2".parse::<Expression>().unwrap(),
             Box::new(mod_numeric)
         ),
-        ("_A1!".parse::<Expression>().unwrap(), Box::new(fact_numeric)), 
+        ("_A1!".parse::<Expression>().unwrap(), Box::new(fact_numeric)),
         */
     ])
 }
