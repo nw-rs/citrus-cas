@@ -16,6 +16,8 @@ use nom::{
 
 use crate::expression::expression_tree::{Atom, Expression, Numeric};
 
+use super::expression_tree::Escape;
+
 // TODO: explain parser
 
 pub fn parse(input: &str) -> Expression {
@@ -151,7 +153,14 @@ fn parse_escape(input: &str) -> IResult<&str, Expression> {
         ),
         |(value, num): (&str, &str)| {
             Expression::Atom(Atom::Escape(
-                value.chars().next().unwrap(),
+                match value.chars().next().unwrap() {
+                    'A' => Escape::Atom,
+                    'F' => Escape::Function,
+                    'V' => Escape::Vector,
+                    'M' => Escape::Matrix,
+                    '*' => Escape::Everything,
+                    _ => unreachable!(),
+                },
                 num.parse::<u8>().unwrap(),
             ))
         },
@@ -263,12 +272,18 @@ mod tests {
 
     #[test]
     fn test_escape() {
-        assert_eq!(parse("_A2"), Expression::Atom(Atom::Escape('A', 2)));
+        assert_eq!(
+            parse("_A2"),
+            Expression::Atom(Atom::Escape(Escape::Atom, 2))
+        );
     }
 
     #[test]
     fn test_wildcard_escape() {
-        assert_eq!(parse("_*0"), Expression::Atom(Atom::Escape('*', 0)));
+        assert_eq!(
+            parse("_*0"),
+            Expression::Atom(Atom::Escape(Escape::Everything, 0))
+        );
     }
 
     #[test]

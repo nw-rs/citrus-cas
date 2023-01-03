@@ -122,18 +122,10 @@ impl Add for Numeric {
             (Numeric::Integer(a), Numeric::Decimal(b)) => Numeric::Decimal(a as f32 + b),
             (Numeric::Decimal(a), Numeric::Integer(b)) => Numeric::Decimal(a + b as f32),
             (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
-                if b == d {
-                    Numeric::Fraction(a + c, b)
-                } else {
-                    Numeric::Decimal((a as f32 / b as f32) + (c as f32 / d as f32))
-                }
+                Numeric::Fraction(a * d + b * c, b * d)
             }
-            (Numeric::Integer(a), Numeric::Fraction(b, c)) => {
-                Numeric::Decimal(a as f32 + (b as f32 / c as f32))
-            }
-            (Numeric::Fraction(a, b), Numeric::Integer(c)) => {
-                Numeric::Decimal((a as f32 / b as f32) + c as f32)
-            }
+            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction(a * c + b, c),
+            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a + b * c, b),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
                 Numeric::Decimal(a + (b as f32 / c as f32))
             }
@@ -154,18 +146,10 @@ impl Sub for Numeric {
             (Numeric::Integer(a), Numeric::Decimal(b)) => Numeric::Decimal(a as f32 - b),
             (Numeric::Decimal(a), Numeric::Integer(b)) => Numeric::Decimal(a - b as f32),
             (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
-                if b == d {
-                    Numeric::Fraction(a - c, b)
-                } else {
-                    Numeric::Decimal((a as f32 / b as f32) - (c as f32 / d as f32))
-                }
+                Numeric::Fraction(a * d - b * c, b * d)
             }
-            (Numeric::Integer(a), Numeric::Fraction(b, c)) => {
-                Numeric::Decimal(a as f32 - (b as f32 / c as f32))
-            }
-            (Numeric::Fraction(a, b), Numeric::Integer(c)) => {
-                Numeric::Decimal((a as f32 / b as f32) - c as f32)
-            }
+            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction(a * c - b, c),
+            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a - b * c, b),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
                 Numeric::Decimal(a - (b as f32 / c as f32))
             }
@@ -185,11 +169,9 @@ impl Mul for Numeric {
             (Numeric::Decimal(a), Numeric::Decimal(b)) => Numeric::Decimal(a * b),
             (Numeric::Integer(a), Numeric::Decimal(b)) => Numeric::Decimal(a as f32 * b),
             (Numeric::Decimal(a), Numeric::Integer(b)) => Numeric::Decimal(a * b as f32),
-            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
-                Numeric::Fraction((a * d) + (b * c), b * d)
-            }
-            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction((a * c) + b, c),
-            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a + (b * c), b),
+            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => Numeric::Fraction(a * c, b * d),
+            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction(a * b, c),
+            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a * c, b),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
                 Numeric::Decimal(a * (b as f32 / c as f32))
             }
@@ -205,15 +187,13 @@ impl Div for Numeric {
 
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Numeric::Integer(a), Numeric::Integer(b)) => Numeric::Integer(a / b),
+            (Numeric::Integer(a), Numeric::Integer(b)) => Numeric::Fraction(a, b),
             (Numeric::Decimal(a), Numeric::Decimal(b)) => Numeric::Decimal(a / b),
             (Numeric::Integer(a), Numeric::Decimal(b)) => Numeric::Decimal(a as f32 / b),
             (Numeric::Decimal(a), Numeric::Integer(b)) => Numeric::Decimal(a / b as f32),
-            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
-                Numeric::Fraction((a * d) - (b * c), b * d)
-            }
-            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction((a * c) - b, c),
-            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a - (b * c), b),
+            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => Numeric::Fraction(a * d, b * c),
+            (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction(a * c, b),
+            (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a, b * c),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
                 Numeric::Decimal(a / (b as f32 / c as f32))
             }
@@ -241,7 +221,29 @@ impl fmt::Display for Numeric {
         match self {
             Numeric::Integer(i) => write!(f, "{}", i),
             Numeric::Decimal(d) => write!(f, "{}", d),
-            Numeric::Fraction(r1, r2) => write!(f, "({})/({})", r1, r2), // must always be in the form of (a)/(b), for reinterpretation to work (?)
+            Numeric::Fraction(r1, r2) => write!(f, "({} / {})", r1, r2),
+        }
+    }
+}
+
+// Escape: indicates where something in an expression should be replaced
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy, Hash)]
+pub enum Escape {
+    Atom,
+    Function,
+    Vector,
+    Matrix,
+    Everything,
+}
+
+impl fmt::Display for Escape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Escape::Atom => write!(f, "_A"),
+            Escape::Function => write!(f, "_F"),
+            Escape::Vector => write!(f, "_V"),
+            Escape::Matrix => write!(f, "_M"),
+            Escape::Everything => write!(f, "_*"),
         }
     }
 }
@@ -251,13 +253,7 @@ impl fmt::Display for Numeric {
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    // escapes indicate where something in an expression should be replaced:
-    // - A for atoms
-    // - F for functions
-    // - V for vectors
-    // - M for matrices
-    // - * for everything
-    Escape(char, u8),
+    Escape(Escape, u8),
     Error(crate::Error),
 }
 
@@ -428,7 +424,7 @@ impl Expression {
         match (self, other) {
             (e, Expression::Atom(a)) => match a {
                 Atom::Escape(escape, _) => match escape {
-                    'A' => match e {
+                    Escape::Atom => match e {
                         Expression::Atom(a) => match map.get(a) {
                             Some(expr) => {
                                 if expr == e {
@@ -446,7 +442,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    'F' => match e {
+                    Escape::Function => match e {
                         Expression::Function { name: _, args: _ } => match map.get(a) {
                             Some(expr) => {
                                 if expr == e {
@@ -464,7 +460,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    'V' => match e {
+                    Escape::Vector => match e {
                         Expression::Vector {
                             backing: _,
                             size: _,
@@ -485,7 +481,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    'M' => match e {
+                    Escape::Matrix => match e {
                         Expression::Matrix {
                             backing: _,
                             shape: _,
@@ -506,7 +502,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    '*' => match map.get(a) {
+                    Escape::Everything => match map.get(a) {
                         Some(expr) => {
                             if expr == e {
                                 Some(1)
@@ -521,7 +517,6 @@ impl Expression {
                             Some(1)
                         }
                     },
-                    _ => unimplemented!(),
                 },
                 _ => {
                     if self == other {
@@ -646,7 +641,7 @@ impl Expression {
                         backing: b,
                         size: s,
                     } => {
-                        let mut backing = alloc::vec::Vec::new();
+                        let mut backing = Vec::new();
 
                         for arg in b.clone() {
                             backing.push(Box::new(arg.conversion()(map).0));
@@ -658,7 +653,7 @@ impl Expression {
                         backing: b,
                         shape: s,
                     } => {
-                        let mut backing = alloc::vec::Vec::new();
+                        let mut backing = Vec::new();
 
                         for arg in b.clone() {
                             backing.push(Box::new(arg.conversion()(map).0));
