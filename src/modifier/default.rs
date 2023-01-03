@@ -47,6 +47,8 @@ pub fn reorganize() -> AdaptableModifier {
         ("_*1 * (_*2 * _*3)", "_*1 * _*2 * _*3"),
         ("_*1 * (_*2 / _*3)", "_*1 * _*2 / _*3"),
         ("(_*1 / _*2) / _*3", "_*1 / (_*2 * _*3)"),
+        ("(-_*1) / _*2", "-(_*1/_*2)"),
+        ("_*1/(-_*2)", "-(_*1/_*2)")
     ]);
 
     let atom_func = AdaptableModifier::from_str_list(vec![
@@ -167,28 +169,69 @@ fn denegate_internal(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool)
                 }
             }
             Numeric::Fraction(r1, r2) => {
+                fn frac_simplify(frac: Numeric) -> Numeric {
+                    match frac {
+                        Numeric::Fraction(r1, r2) => {
+                            let (r1, r2) = simplify(r1, r2);
+                            if r1 == r2 && r2 != 0 {
+                                Numeric::Integer(1)
+                            } else if r2 == 0 {
+                                Numeric::Integer(0)
+                            } else {
+                                Numeric::Fraction(r1, r2)
+                            }
+                        }
+                        _ => panic!("frac_simplify called on non-fraction"),
+                    }
+                }
+
+                fn simplify(numerator: i32, denominator: i32) -> (i32, i32) {
+                    // find the greatest common divisor of the numerator and denominator
+                    let gcd = find_gcd(numerator, denominator);
+
+                    // divide both the numerator and denominator by the gcd
+                    let numerator = numerator / gcd;
+                    let denominator = denominator / gcd;
+
+                    (numerator, denominator)
+                }
+
+                fn find_gcd(a: i32, b: i32) -> i32 {
+                    // keep finding the remainder of a divided by b until b is 0
+                    let mut a = a;
+                    let mut b = b;
+                    while b != 0 {
+                        let remainder = a % b;
+                        a = b;
+                        b = remainder;
+                    }
+
+                    // when b is 0, the gcd is a
+                    a
+                }
+
                 if r1 < &0 && r2 < &0 {
                     (
-                        Expression::Atom(Atom::Numeric(Numeric::Fraction(-r1, -r2))),
+                        Expression::Atom(Atom::Numeric(frac_simplify(Numeric::Fraction(-r1, -r2)))),
                         true,
                     )
                 } else if r1 < &0 {
                     (
                         Expression::Negate(Box::new(Expression::Atom(Atom::Numeric(
-                            Numeric::Fraction(-r1, *r2),
+                            frac_simplify(Numeric::Fraction(-r1, *r2)),
                         )))),
                         true,
                     )
                 } else if r2 < &0 {
                     (
                         Expression::Negate(Box::new(Expression::Atom(Atom::Numeric(
-                            Numeric::Fraction(*r1, -r2),
+                            frac_simplify(Numeric::Fraction(*r1, -r2)),
                         )))),
                         true,
                     )
                 } else {
                     (
-                        Expression::Atom(Atom::Numeric(Numeric::Fraction(*r1, *r2))),
+                        Expression::Atom(Atom::Numeric(frac_simplify(Numeric::Fraction(*r1, *r2)))),
                         false,
                     )
                 }

@@ -169,9 +169,7 @@ impl Mul for Numeric {
             (Numeric::Decimal(a), Numeric::Decimal(b)) => Numeric::Decimal(a * b),
             (Numeric::Integer(a), Numeric::Decimal(b)) => Numeric::Decimal(a as f32 * b),
             (Numeric::Decimal(a), Numeric::Integer(b)) => Numeric::Decimal(a * b as f32),
-            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
-                Numeric::Fraction((a * d) / (b * c), b * d)
-            }
+            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => Numeric::Fraction(a * c, b * d),
             (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction(a * b, c),
             (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a * c, b),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
@@ -193,9 +191,7 @@ impl Div for Numeric {
             (Numeric::Decimal(a), Numeric::Decimal(b)) => Numeric::Decimal(a / b),
             (Numeric::Integer(a), Numeric::Decimal(b)) => Numeric::Decimal(a as f32 / b),
             (Numeric::Decimal(a), Numeric::Integer(b)) => Numeric::Decimal(a / b as f32),
-            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => {
-                Numeric::Fraction((a * d) * (b * c), b * d)
-            }
+            (Numeric::Fraction(a, b), Numeric::Fraction(c, d)) => Numeric::Fraction(a * d, b * c),
             (Numeric::Integer(a), Numeric::Fraction(b, c)) => Numeric::Fraction(a * c, b),
             (Numeric::Fraction(a, b), Numeric::Integer(c)) => Numeric::Fraction(a, b * c),
             (Numeric::Decimal(a), Numeric::Fraction(b, c)) => {
@@ -521,7 +517,6 @@ impl Expression {
                             Some(1)
                         }
                     },
-                    _ => unimplemented!(),
                 },
                 _ => {
                     if self == other {
