@@ -230,18 +230,34 @@ impl fmt::Display for Numeric {
     }
 }
 
+// Escape: indicates where something in an expression should be replaced
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy, Hash)]
+pub enum Escape {
+    Atom,
+    Function,
+    Vector,
+    Matrix,
+    Everything,
+}
+
+impl fmt::Display for Escape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Escape::Atom => write!(f, "_A"),
+            Escape::Function => write!(f, "_F"),
+            Escape::Vector => write!(f, "_V"),
+            Escape::Matrix => write!(f, "_M"),
+            Escape::Everything => write!(f, "_*"),
+        }
+    }
+}
+
 // Atom: the smallest unit of an expression
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Copy, Hash)]
 pub enum Atom {
     Numeric(Numeric),
     Variable(char),
-    // escapes indicate where something in an expression should be replaced:
-    // - A for atoms
-    // - F for functions
-    // - V for vectors
-    // - M for matrices
-    // - * for everything
-    Escape(char, u8),
+    Escape(Escape, u8),
     Error(crate::Error),
 }
 
@@ -412,7 +428,7 @@ impl Expression {
         match (self, other) {
             (e, Expression::Atom(a)) => match a {
                 Atom::Escape(escape, _) => match escape {
-                    'A' => match e {
+                    Escape::Atom => match e {
                         Expression::Atom(a) => match map.get(a) {
                             Some(expr) => {
                                 if expr == e {
@@ -430,7 +446,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    'F' => match e {
+                    Escape::Function => match e {
                         Expression::Function { name: _, args: _ } => match map.get(a) {
                             Some(expr) => {
                                 if expr == e {
@@ -448,7 +464,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    'V' => match e {
+                    Escape::Vector => match e {
                         Expression::Vector {
                             backing: _,
                             size: _,
@@ -469,7 +485,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    'M' => match e {
+                    Escape::Matrix => match e {
                         Expression::Matrix {
                             backing: _,
                             shape: _,
@@ -490,7 +506,7 @@ impl Expression {
                         },
                         _ => None,
                     },
-                    '*' => match map.get(a) {
+                    Escape::Everything => match map.get(a) {
                         Some(expr) => {
                             if expr == e {
                                 Some(1)
@@ -630,7 +646,7 @@ impl Expression {
                         backing: b,
                         size: s,
                     } => {
-                        let mut backing = alloc::vec::Vec::new();
+                        let mut backing = Vec::new();
 
                         for arg in b.clone() {
                             backing.push(Box::new(arg.conversion()(map).0));
@@ -642,7 +658,7 @@ impl Expression {
                         backing: b,
                         shape: s,
                     } => {
-                        let mut backing = alloc::vec::Vec::new();
+                        let mut backing = Vec::new();
 
                         for arg in b.clone() {
                             backing.push(Box::new(arg.conversion()(map).0));

@@ -5,7 +5,7 @@ use alloc::{
 };
 use heapless::LinearMap;
 
-use crate::expression::expression_tree::{Atom, Expression, Numeric};
+use crate::expression::expression_tree::{Atom, Escape, Expression, Numeric};
 
 use super::adaptable_modifier::{AdaptableModifier, ModifierFunction};
 
@@ -59,8 +59,8 @@ pub fn reorganize() -> AdaptableModifier {
 
 fn switch_atoms_add(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(Atom::Variable(a)), Expression::Atom(Atom::Numeric(b))) => (
             Expression::Atom(Atom::Numeric(*b)) + Expression::Atom(Atom::Variable(*a)),
@@ -80,9 +80,9 @@ fn switch_atoms_add(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) 
 
 fn switch_atoms_ext_add(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('*', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Everything, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (e, Expression::Atom(Atom::Variable(a)), Expression::Atom(Atom::Numeric(b))) => (
             e.clone() + Expression::Atom(Atom::Numeric(*b)) + Expression::Atom(Atom::Variable(*a)),
@@ -100,8 +100,8 @@ fn switch_atoms_ext_add(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bo
 
 fn switch_atoms_mul(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(Atom::Variable(a)), Expression::Atom(Atom::Numeric(b))) => (
             Expression::Atom(Atom::Numeric(*b)) * Expression::Atom(Atom::Variable(*a)),
@@ -121,9 +121,9 @@ fn switch_atoms_mul(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) 
 
 fn switch_atoms_ext_mul(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('*', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Everything, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (e, Expression::Atom(Atom::Variable(a)), Expression::Atom(Atom::Numeric(b))) => (
             e.clone() * Expression::Atom(Atom::Numeric(*b)) * Expression::Atom(Atom::Variable(*a)),
@@ -140,7 +140,7 @@ fn switch_atoms_ext_mul(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bo
 }
 
 fn denegate_internal(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
-    match map.get(&Atom::Escape('A', 1)).unwrap() {
+    match map.get(&Atom::Escape(Escape::Atom, 1)).unwrap() {
         Expression::Atom(Atom::Numeric(n)) => match n {
             Numeric::Integer(i) => {
                 if i < &0 {
@@ -266,8 +266,8 @@ pub fn numeric_simplify() -> AdaptableModifier {
 
 fn add_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(a1), Expression::Atom(a2)) => match (a1, a2) {
             (Atom::Numeric(n1), Atom::Numeric(n2)) => {
@@ -281,8 +281,8 @@ fn add_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
 fn sub_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(a1), Expression::Atom(a2)) => match (a1, a2) {
             (Atom::Numeric(n1), Atom::Numeric(n2)) => {
@@ -296,8 +296,8 @@ fn sub_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
 fn mul_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(a1), Expression::Atom(a2)) => match (a1, a2) {
             (Atom::Numeric(n1), Atom::Numeric(n2)) => {
@@ -311,8 +311,8 @@ fn mul_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
 fn div_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(a1), Expression::Atom(a2)) => match (a1, a2) {
             (Atom::Numeric(n1), Atom::Numeric(n2)) => {
@@ -326,8 +326,8 @@ fn div_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
 fn pow_numeric(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
     match (
-        map.get(&Atom::Escape('A', 1)).unwrap(),
-        map.get(&Atom::Escape('A', 2)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+        map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
     ) {
         (Expression::Atom(a1), Expression::Atom(a2)) => match (a1, a2) {
             (Atom::Numeric(n1), Atom::Numeric(n2)) => (
@@ -367,7 +367,7 @@ pub fn num_approx_helper() -> AdaptableModifier {
 }
 
 fn internal_negate_num(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
-    match map.get(&Atom::Escape('A', 1)).unwrap() {
+    match map.get(&Atom::Escape(Escape::Atom, 1)).unwrap() {
         Expression::Atom(a1) => match a1 {
             Atom::Numeric(n1) => (Expression::Atom(Atom::Numeric(-*n1)), false),
             _ => (Expression::Atom(*a1), false),
@@ -378,7 +378,7 @@ fn internal_negate_num(map: &LinearMap<Atom, Expression, 8>) -> (Expression, boo
 
 fn single_num_approx(func: fn(f32) -> f32, name: String) -> ModifierFunction {
     Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
-        match map.get(&Atom::Escape('A', 1)).unwrap() {
+        match map.get(&Atom::Escape(Escape::Atom, 1)).unwrap() {
             Expression::Atom(a1) => match a1 {
                 Atom::Numeric(n1) => (
                     Expression::Atom(Atom::Numeric(Numeric::Decimal(func((*n1).into())))),
@@ -594,9 +594,9 @@ fn value_replace(expr: &Expression, var: &Expression, val: &Expression) -> Expre
 
 // approximate the derivative of a function
 fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
-    let expr = map.get(&Atom::Escape('*', 1)).unwrap();
-    let var = map.get(&Atom::Escape('*', 2)).unwrap();
-    let val = map.get(&Atom::Escape('A', 1)).unwrap();
+    let expr = map.get(&Atom::Escape(Escape::Everything, 1)).unwrap();
+    let var = map.get(&Atom::Escape(Escape::Everything, 2)).unwrap();
+    let val = map.get(&Atom::Escape(Escape::Atom, 1)).unwrap();
 
     let h = 0.0001;
 
@@ -629,10 +629,10 @@ fn diff_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
 
 // approximate the integral of a function
 fn int_approx(map: &LinearMap<Atom, Expression, 8>) -> (Expression, bool) {
-    let expr = map.get(&Atom::Escape('*', 1)).unwrap();
-    let var = map.get(&Atom::Escape('*', 2)).unwrap();
-    let val1 = map.get(&Atom::Escape('A', 1)).unwrap();
-    let val2 = map.get(&Atom::Escape('A', 2)).unwrap();
+    let expr = map.get(&Atom::Escape(Escape::Everything, 1)).unwrap();
+    let var = map.get(&Atom::Escape(Escape::Everything, 2)).unwrap();
+    let val1 = map.get(&Atom::Escape(Escape::Atom, 1)).unwrap();
+    let val2 = map.get(&Atom::Escape(Escape::Atom, 2)).unwrap();
 
     // TODO: use a more accurate approximation
     // trapeziodal rule: (b-a)*((f(a)+f(b))/2)
