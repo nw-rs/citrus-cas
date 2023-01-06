@@ -933,29 +933,46 @@ impl fmt::Display for Expression {
             },
 
             Expression::Add(l, r) => write!(f, "{} + {}", l, r),
-            Expression::Subtract(l, r) => write!(f, "{} - {}", l, r),
+            Expression::Subtract(l, r) => match **r {
+                Expression::Atom(_)
+                | Expression::Matrix { .. }
+                | Expression::Vector { .. }
+                | Expression::Function { .. } => write!(f, "{} - {}", l, r),
+                _ => write!(f, "{} - ({})", l, r),
+            }
             Expression::Modulus(l, r) => write!(f, "{} % {}", l, r),
 
-            Expression::Multiply(l, r) | Expression::Divide(l, r) => {
+            Expression::Multiply(l, r) => {
                 match **l {
                     Expression::Add(_, _)
                     | Expression::Subtract(_, _)
                     | Expression::Modulus(_, _) => write!(f, "({})", l)?,
                     _ => write!(f, "{}", l)?,
                 };
-                write!(
-                    f,
-                    " {} ",
-                    match self {
-                        Expression::Multiply(_, _) => "*",
-                        Expression::Divide(_, _) => "/",
-                        _ => unreachable!(),
-                    }
-                )?;
+                write!(f, " * ")?;
                 match **r {
                     Expression::Add(_, _)
                     | Expression::Subtract(_, _)
                     | Expression::Modulus(_, _) => write!(f, "({})", r),
+                    _ => write!(f, "{}", r),
+                }
+            }
+
+            Expression::Divide(l, r) => {
+                match **l {
+                    Expression::Add(_, _)
+                    | Expression::Subtract(_, _)
+                    | Expression::Modulus(_, _)
+                    | Expression::Multiply(_, _)
+                    | Expression::Divide(_, _) => write!(f, "({})", l)?,
+                    _ => write!(f, "{}", l)?,
+                };
+                write!(f, " / ")?;
+                match **r {
+                    Expression::Add(_, _)
+                    | Expression::Subtract(_, _)
+                    | Expression::Modulus(_, _)
+                    | Expression::Multiply(_, _) => write!(f, "({})", r),
                     _ => write!(f, "{}", r),
                 }
             }
@@ -1039,9 +1056,9 @@ impl FromStr for Expression {
 mod tests {
     use core::str::FromStr;
 
-    use alloc::string::ToString;
+    use alloc::{boxed::Box, string::ToString, vec};
 
-    use crate::expression::expression_tree::{Atom, Numeric, Escape};
+    use crate::expression::expression_tree::{Atom, Escape, Numeric};
 
     use super::Expression;
 
@@ -1299,8 +1316,14 @@ mod tests {
         assert_eq!(Atom::Numeric(Numeric::Decimal(1.0)).to_string(), "1");
         assert_eq!(Atom::Numeric(Numeric::Decimal(25.8)).to_string(), "25.8");
 
-        assert_eq!(Atom::Numeric(Numeric::Fraction(1, 2)).to_string(), "(1 / 2)");
-        assert_eq!(Atom::Numeric(Numeric::Fraction(25, 8)).to_string(), "(25 / 8)");
+        assert_eq!(
+            Atom::Numeric(Numeric::Fraction(1, 2)).to_string(),
+            "(1 / 2)"
+        );
+        assert_eq!(
+            Atom::Numeric(Numeric::Fraction(25, 8)).to_string(),
+            "(25 / 8)"
+        );
 
         assert_eq!(Atom::Variable('x').to_string(), "x");
         assert_eq!(Atom::Variable('y').to_string(), "y");
@@ -1310,6 +1333,610 @@ mod tests {
         assert_eq!(Atom::Escape(Escape::Matrix, 5).to_string(), "_M5");
         assert_eq!(Atom::Escape(Escape::Vector, 7).to_string(), "_V7");
         assert_eq!(Atom::Escape(Escape::Everything, 9).to_string(), "_*9");
+    }
+
+    #[test]
+    fn test_expression_simple_fmt() {
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Integer(1))).to_string(),
+            "1"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Integer(25))).to_string(),
+            "25"
+        );
+
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(1.0))).to_string(),
+            "1"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(25.8))).to_string(),
+            "25.8"
+        );
+
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Fraction(1, 2))).to_string(),
+            "(1 / 2)"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Fraction(25, 8))).to_string(),
+            "(25 / 8)"
+        );
+
+        assert_eq!(Expression::Atom(Atom::Variable('x')).to_string(), "x");
+        assert_eq!(Expression::Atom(Atom::Variable('y')).to_string(), "y");
+
+        assert_eq!(
+            Expression::Atom(Atom::Escape(Escape::Atom, 1)).to_string(),
+            "_A1"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Escape(Escape::Function, 3)).to_string(),
+            "_F3"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Escape(Escape::Matrix, 5)).to_string(),
+            "_M5"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Escape(Escape::Vector, 7)).to_string(),
+            "_V7"
+        );
+        assert_eq!(
+            Expression::Atom(Atom::Escape(Escape::Everything, 9)).to_string(),
+            "_*9"
+        );
+
+        assert_eq!(
+            Expression::Function {
+                name: "x".to_string(),
+                args: vec![Box::new(Expression::Atom(Atom::Variable('y')))]
+            }
+            .to_string(),
+            "x(y)"
+        );
+
+        assert_eq!(
+            Expression::Function {
+                name: "x".to_string(),
+                args: vec![
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ]
+            }
+            .to_string(),
+            "x(y, z)"
+        );
+
+        assert_eq!(
+            Expression::Negate(Box::new(Expression::Atom(Atom::Variable('x')))).to_string(),
+            "-x"
+        );
+
+        assert_eq!(
+            Expression::Factorial(Box::new(Expression::Atom(Atom::Variable('y')))).to_string(),
+            "y!"
+        );
+
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x ^ y"
+        );
+
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x * y"
+        );
+
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x / y"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x + y"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x - y"
+        );
+
+        assert_eq!(
+            Expression::Modulus(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x % y"
+        );
+
+        assert_eq!(
+            Expression::Matrix {
+                backing: vec![Box::new(Expression::Atom(Atom::Variable('x')))],
+                shape: (1, 1)
+            }
+            .to_string(),
+            "[x]"
+        );
+
+        assert_eq!(
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Variable('x'))),
+                    Box::new(Expression::Atom(Atom::Variable('y')))
+                ],
+                shape: (1, 2)
+            }
+            .to_string(),
+            "[x, y]"
+        );
+
+        assert_eq!(
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Variable('x'))),
+                    Box::new(Expression::Atom(Atom::Variable('y')))
+                ],
+                shape: (2, 1)
+            }
+            .to_string(),
+            "[x; y]"
+        );
+
+        assert_eq!(
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Variable('x'))),
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z'))),
+                    Box::new(Expression::Atom(Atom::Variable('w')))
+                ],
+                shape: (2, 2)
+            }
+            .to_string(),
+            "[x, y; z, w]"
+        );
+
+        assert_eq!(
+            Expression::Vector {
+                backing: vec![Box::new(Expression::Atom(Atom::Variable('x')))],
+                size: 1
+            }
+            .to_string(),
+            "<x>"
+        );
+
+        assert_eq!(
+            Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Variable('x'))),
+                    Box::new(Expression::Atom(Atom::Variable('y')))
+                ],
+                size: 2
+            }
+            .to_string(),
+            "<x, y>"
+        );
+
+        assert_eq!(
+            Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Variable('x'))),
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ],
+                size: 3
+            }
+            .to_string(),
+            "<x, y, z>"
+        );
+    }
+
+    #[test]
+    fn test_expression_add_fmt() {
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x + y"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x + y + z"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x + y - z"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x + y * z"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Divide(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x + y / z"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Power(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x + y ^ z"
+        );
+
+        assert_eq!(
+            Expression::Add(
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                )),
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+            )
+            .to_string(),
+            "y + z + x"
+        );
+    }
+
+    #[test]
+    fn test_expression_subtract_fmt() {
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x - y"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x - (y - z)"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x - (y + z)"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x - (y * z)"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Divide(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x - (y / z)"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Power(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x - (y ^ z)"
+        );
+
+        assert_eq!(
+            Expression::Subtract(
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                )),
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+            )
+            .to_string(),
+            "y - z - x"
+        );
+    }
+
+    #[test]
+    fn test_expression_multiply_fmt() {
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x * y"
+        );
+
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x * (y - z)"
+        );
+
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x * (y + z)"
+        );
+
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x * y * z"
+        );
+
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Divide(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x * y / z"
+        );
+
+        assert_eq!(
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Power(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x * y ^ z"
+        );
+    }
+
+    #[test]
+    fn test_expression_divide_fmt() {
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x / y"
+        );
+
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x / (y - z)"
+        );
+
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x / (y + z)"
+        );
+
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x / (y * z)"
+        );
+
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Divide(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x / y / z"
+        );
+
+        assert_eq!(
+            Expression::Divide(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Power(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x / y ^ z"
+        );
+    }
+
+    #[test]
+    fn test_expression_power_fmt() {
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Atom(Atom::Variable('y')))
+            )
+            .to_string(),
+            "x ^ y"
+        );
+
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x ^ (y - z)"
+        );
+
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x ^ (y + z)"
+        );
+
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x ^ (y * z)"
+        );
+
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Divide(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x ^ (y / z)"
+        );
+
+        assert_eq!(
+            Expression::Power(
+                Box::new(Expression::Atom(Atom::Variable('x'))),
+                Box::new(Expression::Power(
+                    Box::new(Expression::Atom(Atom::Variable('y'))),
+                    Box::new(Expression::Atom(Atom::Variable('z')))
+                ))
+            )
+            .to_string(),
+            "x ^ y ^ z"
+        );
     }
 
     #[test]
