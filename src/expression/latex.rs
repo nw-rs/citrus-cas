@@ -98,22 +98,19 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
                         ),
                     )),
                 ),
-                delimited(
+                preceded(
                     alt((tag("("), tag("\\left("))),
-                    pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
-                    alt((tag(")"), tag("\\right)"))),
+                    many0(terminated(
+                        parse_add_sub,
+                        alt((tag(","), tag(")"), tag("\\right)"))),
+                    )),
                 ),
             )),
             space0,
         ),
         |(name, arg_list)| Expression::Function {
             name: name.0.to_string() + name.1,
-            args: arg_list
-                .0
-                .into_iter()
-                .chain(vec![arg_list.1])
-                .map(Box::new)
-                .collect(),
+            args: arg_list.into_iter().map(Box::new).collect(),
         },
     )(input)
 }
