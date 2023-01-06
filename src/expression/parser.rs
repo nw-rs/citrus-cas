@@ -261,6 +261,14 @@ mod tests {
             parse("1.0"),
             Expression::Atom(Atom::Numeric(Numeric::Decimal(1.0)))
         );
+        assert_eq!(
+            parse("55.0"),
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(55.0)))
+        );
+        assert_eq!(
+            parse("55.5"),
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(55.5)))
+        );
     }
 
     #[test]
@@ -269,13 +277,21 @@ mod tests {
             parse("_A2"),
             Expression::Atom(Atom::Escape(Escape::Atom, 2))
         );
-    }
-
-    #[test]
-    fn test_wildcard_escape() {
         assert_eq!(
-            parse("_*0"),
-            Expression::Atom(Atom::Escape(Escape::Everything, 0))
+            parse("_*1"),
+            Expression::Atom(Atom::Escape(Escape::Everything, 1))
+        );
+        assert_eq!(
+            parse("_V2"),
+            Expression::Atom(Atom::Escape(Escape::Vector, 2))
+        );
+        assert_eq!(
+            parse("_M3"),
+            Expression::Atom(Atom::Escape(Escape::Matrix, 3))
+        );
+        assert_eq!(
+            parse("_F4"),
+            Expression::Atom(Atom::Escape(Escape::Function, 4))
         );
     }
 
