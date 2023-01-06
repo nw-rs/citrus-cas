@@ -77,22 +77,16 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
                         take_while(|c: char| c.is_alphanumeric()),
                     ),
                 ),
-                delimited(
+                preceded(
                     char('('),
-                    pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
-                    char(')'),
+                    many0(terminated(parse_add_sub, alt((char(','), char(')'))))),
                 ),
             )),
             space0,
         ),
         |(name, arg_list)| Expression::Function {
             name: name.0.to_string() + name.1,
-            args: arg_list
-                .0
-                .into_iter()
-                .chain(vec![arg_list.1])
-                .map(Box::new)
-                .collect(),
+            args: arg_list.into_iter().map(Box::new).collect(),
         },
     )(input)
 }
@@ -109,10 +103,7 @@ fn parse_vector(input: &str) -> IResult<&str, Expression> {
         ),
         |vector| Expression::Vector {
             size: vector.len() as u8,
-            backing: vector
-                .into_iter()
-                .map(Box::new)
-                .collect(),
+            backing: vector.into_iter().map(Box::new).collect(),
         },
     )(input)
 }
@@ -123,18 +114,20 @@ fn parse_matrix(input: &str) -> IResult<&str, Expression> {
             space0,
             preceded(
                 char('['),
-                many0(
-                    terminated(
-                        separated_list0(char(','), parse_add_sub), 
-                        alt((char(';'), char(']')))
-                    )
-                ),
+                many0(terminated(
+                    separated_list0(char(','), parse_add_sub),
+                    alt((char(';'), char(']'))),
+                )),
             ),
             space0,
         ),
         |flatten_matrix| {
             let row_count = flatten_matrix.len() as u8;
-            let col_count = if row_count == 0 { 0u8 } else { flatten_matrix[0].len() as u8 }; // assuming every row has the same number of columns
+            let col_count = if row_count == 0 {
+                0u8
+            } else {
+                flatten_matrix[0].len() as u8
+            }; // assuming every row has the same number of columns
 
             let backing = flatten_matrix.into_iter().flatten().map(Box::new).collect();
             Expression::Matrix {
@@ -311,6 +304,17 @@ mod tests {
                 )),]
                 .into_iter()
                 .collect(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_function_empty() {
+        assert_eq!(
+            parse("sin()"),
+            Expression::Function {
+                name: "sin".to_string(),
+                args: vec![].into_iter().collect(),
             }
         );
     }
@@ -839,7 +843,10 @@ mod tests {
     fn test_empty_vector() {
         assert_eq!(
             parse("<>"),
-            Expression::Vector { backing: vec![], size: 0 }
+            Expression::Vector {
+                backing: vec![],
+                size: 0
+            }
         )
     }
 
@@ -847,7 +854,10 @@ mod tests {
     fn test_empty_matrix() {
         assert_eq!(
             parse("[]"),
-            Expression::Matrix { backing: vec![], shape: (0, 0) }
+            Expression::Matrix {
+                backing: vec![],
+                shape: (0, 0)
+            }
         )
     }
 }
