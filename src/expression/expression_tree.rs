@@ -262,7 +262,7 @@ impl fmt::Display for Atom {
         match self {
             Atom::Numeric(n) => write!(f, "{}", n),
             Atom::Variable(v) => write!(f, "{}", v),
-            Atom::Escape(e, n) => write!(f, "_{}{}", e, n),
+            Atom::Escape(e, n) => write!(f, "{}{}", e, n),
             Atom::Error(e) => write!(f, "{}", e),
         }
     }
@@ -1041,16 +1041,275 @@ mod tests {
 
     use alloc::string::ToString;
 
-    use crate::expression::expression_tree::{Atom, Numeric};
+    use crate::expression::expression_tree::{Atom, Numeric, Escape};
 
     use super::Expression;
 
     #[test]
     fn test_numeric_eq() {
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Integer(1))),
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(1.0)))
+        );
+
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Integer(1))),
+            Expression::Atom(Atom::Numeric(Numeric::Fraction(5, 5)))
+        );
+
+        assert_eq!(
+            Expression::Atom(Atom::Numeric(Numeric::Decimal(0.5))),
+            Expression::Atom(Atom::Numeric(Numeric::Fraction(1, 2)))
+        );
+
         assert_ne!(
             Expression::Atom(Atom::Numeric(Numeric::Integer(1))),
             Expression::Atom(Atom::Numeric(Numeric::Decimal(1.2)))
         );
+    }
+
+    #[test]
+    fn test_numeric_add() {
+        assert_eq!(
+            Numeric::Integer(1) + Numeric::Integer(1),
+            Numeric::Integer(2)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) + Numeric::Decimal(1.0),
+            Numeric::Decimal(2.0)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) + Numeric::Fraction(1, 2),
+            Numeric::Fraction(3, 2)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) + Numeric::Integer(1),
+            Numeric::Decimal(2.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) + Numeric::Decimal(1.0),
+            Numeric::Decimal(2.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) + Numeric::Fraction(1, 2),
+            Numeric::Decimal(1.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) + Numeric::Integer(1),
+            Numeric::Fraction(3, 2)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) + Numeric::Decimal(1.0),
+            Numeric::Decimal(1.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) + Numeric::Fraction(1, 2),
+            Numeric::Integer(1)
+        );
+    }
+
+    #[test]
+    fn test_numeric_sub() {
+        assert_eq!(
+            Numeric::Integer(1) - Numeric::Integer(1),
+            Numeric::Integer(0)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) - Numeric::Decimal(1.0),
+            Numeric::Decimal(0.0)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) - Numeric::Fraction(1, 2),
+            Numeric::Fraction(1, 2)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) - Numeric::Integer(1),
+            Numeric::Decimal(0.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) - Numeric::Decimal(1.0),
+            Numeric::Decimal(0.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) - Numeric::Fraction(1, 2),
+            Numeric::Decimal(0.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) - Numeric::Integer(1),
+            Numeric::Fraction(-1, 2)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) - Numeric::Decimal(1.0),
+            Numeric::Decimal(-0.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) - Numeric::Fraction(1, 2),
+            Numeric::Integer(0)
+        );
+    }
+
+    #[test]
+    fn test_numeric_mul() {
+        assert_eq!(
+            Numeric::Integer(1) * Numeric::Integer(1),
+            Numeric::Integer(1)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) * Numeric::Decimal(1.0),
+            Numeric::Decimal(1.0)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) * Numeric::Fraction(1, 2),
+            Numeric::Fraction(1, 2)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) * Numeric::Integer(1),
+            Numeric::Decimal(1.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) * Numeric::Decimal(1.0),
+            Numeric::Decimal(1.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) * Numeric::Fraction(1, 2),
+            Numeric::Decimal(0.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) * Numeric::Integer(1),
+            Numeric::Fraction(1, 2)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) * Numeric::Decimal(1.0),
+            Numeric::Decimal(0.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) * Numeric::Fraction(1, 2),
+            Numeric::Fraction(1, 4)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(22, 5) * Numeric::Fraction(1, 2),
+            Numeric::Fraction(11, 5)
+        );
+    }
+
+    #[test]
+    fn test_numeric_div() {
+        assert_eq!(
+            Numeric::Integer(1) / Numeric::Integer(1),
+            Numeric::Integer(1)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) / Numeric::Decimal(1.0),
+            Numeric::Decimal(1.0)
+        );
+
+        assert_eq!(
+            Numeric::Integer(1) / Numeric::Fraction(1, 2),
+            Numeric::Fraction(2, 1)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) / Numeric::Integer(1),
+            Numeric::Decimal(1.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) / Numeric::Decimal(1.0),
+            Numeric::Decimal(1.0)
+        );
+
+        assert_eq!(
+            Numeric::Decimal(1.0) / Numeric::Fraction(1, 2),
+            Numeric::Decimal(2.0)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) / Numeric::Integer(1),
+            Numeric::Fraction(1, 2)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) / Numeric::Decimal(1.0),
+            Numeric::Decimal(0.5)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(1, 2) / Numeric::Fraction(1, 2),
+            Numeric::Integer(1)
+        );
+
+        assert_eq!(
+            Numeric::Fraction(22, 5) / Numeric::Fraction(1, 2),
+            Numeric::Fraction(44, 5)
+        );
+    }
+
+    #[test]
+    fn test_numeric_fmt() {
+        assert_eq!(Numeric::Integer(1).to_string(), "1");
+        assert_eq!(Numeric::Integer(25).to_string(), "25");
+
+        assert_eq!(Numeric::Decimal(1.0).to_string(), "1");
+        assert_eq!(Numeric::Decimal(25.8).to_string(), "25.8");
+
+        assert_eq!(Numeric::Fraction(1, 2).to_string(), "(1 / 2)");
+        assert_eq!(Numeric::Fraction(25, 8).to_string(), "(25 / 8)");
+    }
+
+    #[test]
+    fn test_escape_fmt() {
+        assert_eq!(Escape::Atom.to_string(), "_A");
+        assert_eq!(Escape::Function.to_string(), "_F");
+        assert_eq!(Escape::Matrix.to_string(), "_M");
+        assert_eq!(Escape::Vector.to_string(), "_V");
+        assert_eq!(Escape::Everything.to_string(), "_*");
+    }
+
+    #[test]
+    fn test_atom_fmt() {
+        assert_eq!(Atom::Numeric(Numeric::Integer(1)).to_string(), "1");
+        assert_eq!(Atom::Numeric(Numeric::Integer(25)).to_string(), "25");
+
+        assert_eq!(Atom::Numeric(Numeric::Decimal(1.0)).to_string(), "1");
+        assert_eq!(Atom::Numeric(Numeric::Decimal(25.8)).to_string(), "25.8");
+
+        assert_eq!(Atom::Numeric(Numeric::Fraction(1, 2)).to_string(), "(1 / 2)");
+        assert_eq!(Atom::Numeric(Numeric::Fraction(25, 8)).to_string(), "(25 / 8)");
+
+        assert_eq!(Atom::Variable('x').to_string(), "x");
+        assert_eq!(Atom::Variable('y').to_string(), "y");
+
+        assert_eq!(Atom::Escape(Escape::Atom, 1).to_string(), "_A1");
+        assert_eq!(Atom::Escape(Escape::Function, 3).to_string(), "_F3");
+        assert_eq!(Atom::Escape(Escape::Matrix, 5).to_string(), "_M5");
+        assert_eq!(Atom::Escape(Escape::Vector, 7).to_string(), "_V7");
+        assert_eq!(Atom::Escape(Escape::Everything, 9).to_string(), "_*9");
     }
 
     #[test]
