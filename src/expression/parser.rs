@@ -1,4 +1,3 @@
-use alloc::vec;
 use alloc::{boxed::Box, string::ToString, vec::Vec};
 
 use nom::bytes::complete::take_while;

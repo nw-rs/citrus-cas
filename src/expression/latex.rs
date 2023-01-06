@@ -345,7 +345,13 @@ pub fn latexify(expr: &Expression) -> String {
         }
 
         Expression::Function { name, args } => {
-            let mut out = format!("{}\\left(", name);
+            let mut out = match name.as_str() {
+                "cos" | "csc" | "exp" | "ker" | "limsup" | "min" | "sinh" | "arcsin" | "cosh"
+                | "deg" | "gcd" | "lg" | "ln" | "Pr" | "sup" | "arctan" | "cot" | "det" | "hom"
+                | "lim" | "log" | "sec" | "tan" | "arg" | "coth" | "dim" | "liminf" | "max"
+                | "sin" | "tanh" => format!("\\{}\\left(", name),
+                _ => format!("{}\\left(", name),
+            };
             for (i, arg) in args.iter().enumerate() {
                 if i > 0 {
                     out += ",";
@@ -391,7 +397,11 @@ pub fn latexify(expr: &Expression) -> String {
 }
 
 mod tests {
-    use super::*;
+    use alloc::{boxed::Box, string::ToString, vec};
+
+    use crate::expression::expression_tree::{Atom, Expression, Numeric};
+
+    use super::{latexify, parse};
 
     #[test]
     fn complex_latex() {
