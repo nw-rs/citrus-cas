@@ -440,7 +440,7 @@ mod tests {
 
     use super::{AdaptableModifier, ModifierImmutable};
     use crate::{
-        expression::expression_tree::{Atom, Expression},
+        expression::expression_tree::{Atom, Escape, Expression},
         modifier::{adaptable_modifier::CachingAdaptableModifier, ModifierMutable},
     };
 
@@ -615,8 +615,8 @@ mod tests {
 
         let numeric_add = Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
             match (
-                map.get(&Atom::Escape('A', 1)).unwrap(),
-                map.get(&Atom::Escape('A', 2)).unwrap(),
+                map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+                map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
             ) {
                 (Expression::Atom(a), Expression::Atom(b)) => match (a, b) {
                     (Atom::Numeric(a), Atom::Numeric(b)) => {
@@ -848,8 +848,8 @@ mod tests {
 
         let numeric_add = Box::new(move |map: &LinearMap<Atom, Expression, 8>| {
             match (
-                map.get(&Atom::Escape('A', 1)).unwrap(),
-                map.get(&Atom::Escape('A', 2)).unwrap(),
+                map.get(&Atom::Escape(Escape::Atom, 1)).unwrap(),
+                map.get(&Atom::Escape(Escape::Atom, 2)).unwrap(),
             ) {
                 (Expression::Atom(a), Expression::Atom(b)) => match (a, b) {
                     (Atom::Numeric(a), Atom::Numeric(b)) => {

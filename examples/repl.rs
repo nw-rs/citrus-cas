@@ -1,4 +1,4 @@
-use rcas::{
+use citrus_cas::{
     expression::expression_tree::Expression,
     modifier::{
         adaptable_modifier::AdaptableModifier,

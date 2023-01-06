@@ -1,24 +1,22 @@
 [package]
-name = "rcas"
-version = "0.1.0"
-authors = ["willemml <willem@leit.so>"]
+name = "citrus-cas"
+version = "0.0.1"
 edition = "2021"
-license = "GPL-3.0"
-description = "CAS (Computer Algebra System) for no_std environements."
-repository = "https://github.com/willemml/rcas"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["willemml <willem@leit.so>", "Alessandra Simmons"]
+license = "MIT"
+description = "Pure Rust CAS (Computer Algebra System)"
+repository = "https://github.com/nw-rs/citrus-cas"
 
 [dependencies]
 nom = { version = "7.1.1", default-features = false, features = ["alloc"] }
 heapless = "0.7.14"
 libm = "0.2.2"
-indexmap = "1.9.1"
+indexmap = { version = "1.9.1", default-features = false }
 
 [features]
 default = ["std"]
-std = []
+std = ["indexmap/std"]
 
 [lib]
-name = "rcas"
+name = "citrus_cas"
 path = "src/lib.rs"
