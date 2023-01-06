@@ -120,21 +120,18 @@ fn parse_vector(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
             space0,
-            delimited(
-                char('<'),
-                pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
-                char('>'),
+            preceded(
+                tag("\\begin{vmatrix}"),
+                many0(terminated(
+                    parse_add_sub,
+                    alt((tag("\\\\"), tag("\\end{vmatrix}"))),
+                )),
             ),
             space0,
         ),
         |vector| Expression::Vector {
-            size: vector.0.len() as u8 + 1,
-            backing: vector
-                .0
-                .into_iter()
-                .chain(vec![vector.1])
-                .map(Box::new)
-                .collect(),
+            size: vector.len() as u8,
+            backing: vector.into_iter().map(Box::new).collect(),
         },
     )(input)
 }
@@ -143,16 +140,22 @@ fn parse_matrix(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
             space0,
-            delimited(
-                char('['),
-                separated_list0(char(';'), separated_list0(char(','), parse_add_sub)),
-                char(']'),
+            preceded(
+                tag("\\begin{bmatrix}"),
+                many0(terminated(
+                    separated_list0(char('&'), parse_add_sub),
+                    alt((tag("\\\\"), tag("\\end{bmatrix}"))),
+                )),
             ),
             space0,
         ),
         |flatten_matrix| {
             let row_count = flatten_matrix.len() as u8;
-            let col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
+            let col_count = if row_count == 0 {
+                0u8
+            } else {
+                flatten_matrix[0].len() as u8
+            }; // assuming every row has the same number of columns
 
             let backing = flatten_matrix.into_iter().flatten().map(Box::new).collect();
             Expression::Matrix {
@@ -365,33 +368,41 @@ pub fn latexify(expr: &Expression) -> String {
             backing: vec,
             size: _,
         } => {
-            format!("<");
-            for (i, e) in vec.iter().enumerate() {
-                if i > 0 {
-                    format!(",");
+            format!("\\begin{{vmatrix}}{}\\end{{vmatrix}}", {
+                let mut out = String::new();
+
+                for (id, arg) in vec.iter().enumerate() {
+                    out = format!("{}{}", out, &latexify(&arg));
+                    if id != vec.len() - 1 {
+                        out += "\\\\";
+                    }
                 }
-                format!("{}", e);
-            }
-            format!(">")
+
+                out
+            })
         }
 
         Expression::Matrix {
             backing: vec,
             shape: (rs, cs),
         } => {
-            format!("[");
-            for r in 0..*rs {
-                if r > 0 {
-                    format!(";");
-                }
-                for c in 0..*cs {
-                    if c > 0 {
-                        format!(",");
+            format!("\\begin{{bmatrix}}{}\\end{{bmatrix}}", {
+                let mut out = String::new();
+
+                for r in 0..*rs {
+                    if r > 0 {
+                        out += "\\\\";
                     }
-                    format!("{}", vec[(*cs * r + c) as usize]);
+                    for c in 0..*cs {
+                        if c > 0 {
+                            out += "&";
+                        }
+                        out = format!("{}{}", out, &latexify(&vec[(*cs * r + c) as usize]));
+                    }
                 }
-            }
-            format!("]")
+
+                out
+            })
         }
     }
 }
@@ -758,6 +769,240 @@ mod tests {
     }
 
     #[test]
+    fn latex_test_matrix() {
+        assert_eq!(
+            parse("\\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}"),
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                ],
+                shape: (2, 2),
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_matrix_in_expression() {
+        assert_eq!(
+            parse("5 \\cdot \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}"),
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Matrix {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                    ],
+                    shape: (2, 2),
+                })
+            )
+        )
+    }
+
+    #[test]
+    fn latex_test_matrix_in_matrix() {
+        assert_eq!(
+            parse("\\begin{bmatrix} 1 \\\\ \\begin{bmatrix} 3 & 4 \\end{bmatrix} \\end{bmatrix}"),
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                        ],
+                        shape: (1, 2),
+                    }),
+                ],
+                shape: (2, 1),
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_matrix_in_function() {
+        assert_eq!(
+            parse("\\sin(\\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix})"),
+            Expression::Function {
+                name: "sin".to_string(),
+                args: vec![Box::new(Expression::Matrix {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                    ],
+                    shape: (2, 2),
+                }),],
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_expression_in_matrix() {
+        assert_eq!(
+            parse("\\begin{bmatrix} 1 & 2 \\\\ 3 & 5 \\cdot 4 \\end{bmatrix}"),
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                    Box::new(Expression::Multiply(
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                    )),
+                ],
+                shape: (2, 2),
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_vector() {
+        assert_eq!(
+            parse("\\begin{vmatrix} 1 \\\\ 2 \\\\ 3 \\\\ 4 \\end{vmatrix}"),
+            Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                ],
+                size: 4,
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_vector_in_expression() {
+        assert_eq!(
+            parse("5 \\cdot \\begin{vmatrix} 1 \\\\ 2 \\\\ 3 \\\\ 4 \\end{vmatrix}"),
+            Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Vector {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                    ],
+                    size: 4,
+                })
+            )
+        )
+    }
+
+    #[test]
+    fn latex_test_vector_in_vector() {
+        assert_eq!(
+            parse(
+                "\\begin{vmatrix} 1 \\\\ \\begin{vmatrix} 3 \\\\ 4 \\end{vmatrix} \\end{vmatrix}"
+            ),
+            Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                        ],
+                        size: 2,
+                    }),
+                ],
+                size: 2,
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_vector_in_function() {
+        assert_eq!(
+            parse("\\sin(\\begin{vmatrix} 1 \\\\ 2 \\\\ 3 \\\\ 4 \\end{vmatrix})"),
+            Expression::Function {
+                name: "sin".to_string(),
+                args: vec![Box::new(Expression::Vector {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                    ],
+                    size: 4,
+                }),],
+            }
+        );
+    }
+
+    #[test]
+    fn latex_test_expression_in_vector() {
+        assert_eq!(
+            parse("\\begin{vmatrix} 1 \\\\ 2 \\\\ 3 \\\\ 5 \\cdot 4 \\end{vmatrix}"),
+            Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                    Box::new(Expression::Multiply(
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                    )),
+                ],
+                size: 4,
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_vector_in_matrix() {
+        assert_eq!(
+            parse("\\begin{bmatrix} 1 & 2 \\\\ 3 & \\begin{vmatrix} 5 \\\\ 6 \\end{vmatrix} \\end{bmatrix}"),
+            Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                        ],
+                        size: 2,
+                    }),
+                ],
+                shape: (2, 2),
+            }
+        )
+    }
+
+    #[test]
+    fn latex_test_matrix_in_vector() {
+        assert_eq!(
+            parse("\\begin{vmatrix} 1 \\\\ 2 \\\\ 3 \\\\ \\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix} \\end{vmatrix}"),
+            Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(1)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(3)))),
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                ],
+                size: 4,
+            }
+        )
+    }
+
+    #[test]
     fn integer_string_latex() {
         assert_eq!(
             "5",
@@ -951,6 +1196,252 @@ mod tests {
                 ))]
                 .into_iter()
                 .collect(),
+            })
+        );
+    }
+
+    #[test]
+    fn vector_string_latex() {
+        assert_eq!(
+            "\\begin{vmatrix}5\\\\6\\end{vmatrix}",
+            latexify(&Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                ],
+                size: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn vector_in_expression_string_latex() {
+        assert_eq!(
+            "5\\cdot\\begin{vmatrix}6\\\\7\\end{vmatrix}",
+            latexify(&Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Vector {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                    ],
+                    size: 2,
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn vector_in_function_string_latex() {
+        assert_eq!(
+            "\\sin\\left(\\begin{vmatrix}5\\\\6\\end{vmatrix}\\right)",
+            latexify(&Expression::Function {
+                name: "sin".to_string(),
+                args: vec![Box::new(Expression::Vector {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                    ],
+                    size: 2,
+                })],
+            })
+        );
+    }
+
+    #[test]
+    fn vector_in_vector_string_latex() {
+        assert_eq!(
+            "\\begin{vmatrix}\\begin{vmatrix}5\\\\6\\end{vmatrix}\\\\\\begin{vmatrix}7\\\\8\\end{vmatrix}\\end{vmatrix}",
+            latexify(&Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                        ],
+                        size: 2,
+                    }),
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                        ],
+                        size: 2,
+                    }),
+                ],
+                size: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn matrix_string_latex() {
+        assert_eq!(
+            "\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}",
+            latexify(&Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                ],
+                shape: (2, 2),
+            })
+        );
+    }
+
+    #[test]
+    fn matrix_in_expression_string_latex() {
+        assert_eq!(
+            "5\\cdot\\begin{bmatrix}6&7\\\\8&9\\end{bmatrix}",
+            latexify(&Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Matrix {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(9)))),
+                    ],
+                    shape: (2, 2),
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn matrix_in_function_string_latex() {
+        assert_eq!(
+            "\\sin\\left(\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}\\right)",
+            latexify(&Expression::Function {
+                name: "sin".to_string(),
+                args: vec![Box::new(Expression::Matrix {
+                    backing: vec![
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                        Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                    ],
+                    shape: (2, 2),
+                })],
+            })
+        );
+    }
+
+    #[test]
+    fn matrix_in_matrix_string_latex() {
+        assert_eq!(
+            "\\begin{bmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}&\\begin{bmatrix}9&10\\\\11&12\\end{bmatrix}\\\\\\begin{bmatrix}13&14\\\\15&16\\end{bmatrix}&\\begin{bmatrix}17&18\\\\19&20\\end{bmatrix}\\end{bmatrix}",
+            latexify(&Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(9)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(10)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(11)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(12)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(13)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(14)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(15)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(16)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(17)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(18)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(19)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(20)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                ],
+                shape: (2, 2),
+            })
+        );
+    }
+
+    #[test]
+    fn vector_in_matrix_string_latex() {
+        assert_eq!(
+            "\\begin{bmatrix}\\begin{vmatrix}5\\\\6\\end{vmatrix}&\\begin{vmatrix}7\\\\8\\end{vmatrix}\\\\\\begin{vmatrix}9\\\\10\\end{vmatrix}&\\begin{vmatrix}11\\\\12\\end{vmatrix}\\end{bmatrix}",
+            latexify(&Expression::Matrix {
+                backing: vec![
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                        ],
+                        size: 2,
+                    }),
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                        ],
+                        size: 2,
+                    }),
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(9)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(10)))),
+                        ],
+                        size: 2,
+                    }),
+                    Box::new(Expression::Vector {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(11)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(12)))),
+                        ],
+                        size: 2,
+                    }),
+                ],
+                shape: (2, 2),
+            })
+        );
+    }
+
+    #[test]
+    fn matrix_in_vector_string_latex() {
+        assert_eq!(
+            "\\begin{vmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}\\\\\\begin{bmatrix}9&10\\\\11&12\\end{bmatrix}\\end{vmatrix}",
+            latexify(&Expression::Vector {
+                backing: vec![
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(8)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                    Box::new(Expression::Matrix {
+                        backing: vec![
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(9)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(10)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(11)))),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(12)))),
+                        ],
+                        shape: (2, 2),
+                    }),
+                ],
+                size: 2,
             })
         );
     }
