@@ -642,42 +642,6 @@ mod tests {
     }
 
     #[test]
-    fn complex_string_latex() {
-        assert_eq!(
-            "\\frac{5}{6}\\cdot5+4^{2+x}-1!+arc\\left(6\\right)",
-            latexify(&Expression::Add(
-                Box::new(Expression::Subtract(
-                    Box::new(Expression::Add(
-                        Box::new(Expression::Multiply(
-                            Box::new(Expression::Divide(
-                                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
-                                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
-                            )),
-                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5))))
-                        )),
-                        Box::new(Expression::Power(
-                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
-                            Box::new(Expression::Add(
-                                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
-                                Box::new(Expression::Atom(Atom::Variable('x')))
-                            ))
-                        ))
-                    )),
-                    Box::new(Expression::Factorial(Box::new(Expression::Atom(
-                        Atom::Numeric(Numeric::Integer(1))
-                    ))))
-                )),
-                Box::new(Expression::Function {
-                    name: "arc".to_string(),
-                    args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
-                        6
-                    ))))],
-                })
-            ))
-        )
-    }
-
-    #[test]
     fn latex_test_integer() {
         assert_eq!(
             parse("1"),
@@ -792,5 +756,220 @@ mod tests {
                 })
             )
         );
+    }
+
+    #[test]
+    fn integer_string_latex() {
+        assert_eq!("5", latexify(&Expression::Atom(Atom::Numeric(Numeric::Integer(5)))));
+    }
+
+    #[test]
+    fn decimal_string_latex() {
+        assert_eq!("5", latexify(&Expression::Atom(Atom::Numeric(Numeric::Decimal(5.0)))));
+        assert_eq!("5.7", latexify(&Expression::Atom(Atom::Numeric(Numeric::Decimal(5.7)))));
+    }
+
+    #[test]
+    fn variable_string_latex() {
+        assert_eq!("x", latexify(&Expression::Atom(Atom::Variable('x'))));
+    }
+
+    #[test]
+    fn unicode_variable_string_latex() {
+        assert_eq!("π", latexify(&Expression::Atom(Atom::Variable('π'))));
+    }
+
+    #[test]
+    fn escape_string_latex() {
+        assert_eq!("_A2", latexify(&Expression::Atom(Atom::Escape(Escape::Atom, 2))));
+    }
+
+    #[test]
+    fn wildcard_escape_string_latex() {
+        assert_eq!("_*0", latexify(&Expression::Atom(Atom::Escape(Escape::Everything, 0))));
+    }
+
+    #[test]
+    fn negate_string_latex() {
+        assert_eq!(
+            "-5",
+            latexify(&Expression::Negate(Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
+                5
+            ))))))
+        );
+    }
+
+    #[test]
+    fn add_string_latex() {
+        assert_eq!(
+            "5+6",
+            latexify(&Expression::Add(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
+            ))
+        );
+    }
+
+    #[test]
+    fn subtract_string_latex() {
+        assert_eq!(
+            "5-6",
+            latexify(&Expression::Subtract(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
+            ))
+        );
+    }
+
+    #[test]
+    fn multiply_string_latex() {
+        assert_eq!(
+            "5\\cdot6",
+            latexify(&Expression::Multiply(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
+            ))
+        );
+    }
+
+    #[test]
+    fn divide_string_latex() {
+        assert_eq!(
+            "\\frac{5}{6}",
+            latexify(&Expression::Divide(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
+            ))
+        );
+    }
+
+    #[test]
+    fn power_string_latex() {
+        assert_eq!(
+            "5^6",
+            latexify(&Expression::Power(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
+            ))
+        );
+    }
+
+    #[test]
+    fn complex_power_string_latex() {
+        assert_eq!(
+            "5^{6^7}",
+            latexify(&Expression::Power(
+                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                Box::new(Expression::Power(
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(7))))
+                ))
+            ))
+        );
+    }
+
+    #[test]
+    fn factorial_string_latex() {
+        assert_eq!(
+            "5!",
+            latexify(&Expression::Factorial(Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
+                5
+            ))))))
+        );
+    }
+
+    #[test]
+    fn function_string_latex() {
+        assert_eq!(
+            "\\sin\\left(5\\right)",
+            latexify(&Expression::Function {
+                name: "sin".to_string(),
+                args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5))))]
+                    .into_iter()
+                    .collect(),
+            })
+        );
+    }
+
+    #[test]
+    fn function_string_latex_empty() {
+        assert_eq!(
+            "\\sin\\left(\\right)",
+            latexify(&Expression::Function {
+                name: "sin".to_string(),
+                args: vec![].into_iter().collect(),
+            })
+        );
+    }
+
+    #[test]
+    fn function_string_latex_multiple() {
+        assert_eq!(
+            "\\sin\\left(5,6\\right)",
+            latexify(&Expression::Function {
+                name: "sin".to_string(),
+                args: vec![
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6)))),
+                ]
+                .into_iter()
+                .collect(),
+            })
+        );
+    }
+
+    #[test]
+    fn function_string_latex_advanced() {
+        assert_eq!(
+            "\\sin\\left(5\\cdot\\log\\left(6\\right)\\right)",
+            latexify(&Expression::Function {
+                name: "sin".to_string(),
+                args: vec![Box::new(Expression::Multiply(
+                    Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                    Box::new(Expression::Function {
+                        name: "log".to_string(),
+                        args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))],
+                    })
+                ))]
+                .into_iter()
+                .collect(),
+            })
+        );
+    }
+
+    #[test]
+    fn complex_string_latex() {
+        assert_eq!(
+            "\\frac{5}{6}\\cdot5+4^{2+x}-1!+arc\\left(6\\right)",
+            latexify(&Expression::Add(
+                Box::new(Expression::Subtract(
+                    Box::new(Expression::Add(
+                        Box::new(Expression::Multiply(
+                            Box::new(Expression::Divide(
+                                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
+                                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
+                            )),
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5))))
+                        )),
+                        Box::new(Expression::Power(
+                            Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(4)))),
+                            Box::new(Expression::Add(
+                                Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(2)))),
+                                Box::new(Expression::Atom(Atom::Variable('x')))
+                            ))
+                        ))
+                    )),
+                    Box::new(Expression::Factorial(Box::new(Expression::Atom(
+                        Atom::Numeric(Numeric::Integer(1))
+                    ))))
+                )),
+                Box::new(Expression::Function {
+                    name: "arc".to_string(),
+                    args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
+                        6
+                    ))))],
+                })
+            ))
+        )
     }
 }
