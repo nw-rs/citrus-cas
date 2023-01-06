@@ -98,22 +98,19 @@ fn parse_function(input: &str) -> IResult<&str, Expression> {
                         ),
                     )),
                 ),
-                delimited(
+                preceded(
                     alt((tag("("), tag("\\left("))),
-                    pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
-                    alt((tag(")"), tag("\\right)"))),
+                    many0(terminated(
+                        parse_add_sub,
+                        alt((tag(","), tag(")"), tag("\\right)"))),
+                    )),
                 ),
             )),
             space0,
         ),
         |(name, arg_list)| Expression::Function {
             name: name.0.to_string() + name.1,
-            args: arg_list
-                .0
-                .into_iter()
-                .chain(vec![arg_list.1])
-                .map(Box::new)
-                .collect(),
+            args: arg_list.into_iter().map(Box::new).collect(),
         },
     )(input)
 }
@@ -348,7 +345,13 @@ pub fn latexify(expr: &Expression) -> String {
         }
 
         Expression::Function { name, args } => {
-            let mut out = format!("{}\\left(", name);
+            let mut out = match name.as_str() {
+                "cos" | "csc" | "exp" | "ker" | "limsup" | "min" | "sinh" | "arcsin" | "cosh"
+                | "deg" | "gcd" | "lg" | "ln" | "Pr" | "sup" | "arctan" | "cot" | "det" | "hom"
+                | "lim" | "log" | "sec" | "tan" | "arg" | "coth" | "dim" | "liminf" | "max"
+                | "sin" | "tanh" => format!("\\{}\\left(", name),
+                _ => format!("{}\\left(", name),
+            };
             for (i, arg) in args.iter().enumerate() {
                 if i > 0 {
                     out += ",";
@@ -394,7 +397,11 @@ pub fn latexify(expr: &Expression) -> String {
 }
 
 mod tests {
-    use super::*;
+    use alloc::{boxed::Box, string::ToString, vec};
+
+    use crate::expression::expression_tree::{Atom, Expression, Numeric};
+
+    use super::{latexify, parse};
 
     #[test]
     fn complex_latex() {
