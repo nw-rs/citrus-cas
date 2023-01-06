@@ -101,19 +101,16 @@ fn parse_vector(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
             space0,
-            delimited(
+            preceded(
                 char('<'),
-                pair(many0(terminated(parse_add_sub, char(','))), parse_add_sub),
-                char('>'),
+                many0(terminated(parse_add_sub, alt((char(','), char('>'))))),
             ),
             space0,
         ),
         |vector| Expression::Vector {
-            size: vector.0.len() as u8 + 1,
+            size: vector.len() as u8,
             backing: vector
-                .0
                 .into_iter()
-                .chain(vec![vector.1])
                 .map(Box::new)
                 .collect(),
         },
@@ -124,16 +121,20 @@ fn parse_matrix(input: &str) -> IResult<&str, Expression> {
     map(
         delimited(
             space0,
-            delimited(
+            preceded(
                 char('['),
-                separated_list0(char(';'), separated_list0(char(','), parse_add_sub)),
-                char(']'),
+                many0(
+                    terminated(
+                        separated_list0(char(','), parse_add_sub), 
+                        alt((char(';'), char(']')))
+                    )
+                ),
             ),
             space0,
         ),
         |flatten_matrix| {
             let row_count = flatten_matrix.len() as u8;
-            let col_count = flatten_matrix[0].len() as u8; // assuming every row has the same number of columns
+            let col_count = if row_count == 0 { 0u8 } else { flatten_matrix[0].len() as u8 }; // assuming every row has the same number of columns
 
             let backing = flatten_matrix.into_iter().flatten().map(Box::new).collect();
             Expression::Matrix {
@@ -831,6 +832,22 @@ mod tests {
                 ],
                 size: 3,
             }
+        )
+    }
+
+    #[test]
+    fn test_empty_vector() {
+        assert_eq!(
+            parse("<>"),
+            Expression::Vector { backing: vec![], size: 0 }
+        )
+    }
+
+    #[test]
+    fn test_empty_matrix() {
+        assert_eq!(
+            parse("[]"),
+            Expression::Matrix { backing: vec![], shape: (0, 0) }
         )
     }
 }
