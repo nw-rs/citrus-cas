@@ -939,7 +939,7 @@ impl fmt::Display for Expression {
                 | Expression::Vector { .. }
                 | Expression::Function { .. } => write!(f, "{} - {}", l, r),
                 _ => write!(f, "{} - ({})", l, r),
-            }
+            },
             Expression::Modulus(l, r) => write!(f, "{} % {}", l, r),
 
             Expression::Multiply(l, r) => {

@@ -399,7 +399,7 @@ pub fn latexify(expr: &Expression) -> String {
 mod tests {
     use alloc::{boxed::Box, string::ToString, vec};
 
-    use crate::expression::expression_tree::{Atom, Expression, Numeric, Escape};
+    use crate::expression::expression_tree::{Atom, Escape, Expression, Numeric};
 
     use super::{latexify, parse};
 
@@ -535,7 +535,6 @@ mod tests {
             )
         );
     }
-
 
     #[test]
     fn latex_test_spaceless() {
@@ -760,13 +759,22 @@ mod tests {
 
     #[test]
     fn integer_string_latex() {
-        assert_eq!("5", latexify(&Expression::Atom(Atom::Numeric(Numeric::Integer(5)))));
+        assert_eq!(
+            "5",
+            latexify(&Expression::Atom(Atom::Numeric(Numeric::Integer(5))))
+        );
     }
 
     #[test]
     fn decimal_string_latex() {
-        assert_eq!("5", latexify(&Expression::Atom(Atom::Numeric(Numeric::Decimal(5.0)))));
-        assert_eq!("5.7", latexify(&Expression::Atom(Atom::Numeric(Numeric::Decimal(5.7)))));
+        assert_eq!(
+            "5",
+            latexify(&Expression::Atom(Atom::Numeric(Numeric::Decimal(5.0))))
+        );
+        assert_eq!(
+            "5.7",
+            latexify(&Expression::Atom(Atom::Numeric(Numeric::Decimal(5.7))))
+        );
     }
 
     #[test]
@@ -781,21 +789,27 @@ mod tests {
 
     #[test]
     fn escape_string_latex() {
-        assert_eq!("_A2", latexify(&Expression::Atom(Atom::Escape(Escape::Atom, 2))));
+        assert_eq!(
+            "_A2",
+            latexify(&Expression::Atom(Atom::Escape(Escape::Atom, 2)))
+        );
     }
 
     #[test]
     fn wildcard_escape_string_latex() {
-        assert_eq!("_*0", latexify(&Expression::Atom(Atom::Escape(Escape::Everything, 0))));
+        assert_eq!(
+            "_*0",
+            latexify(&Expression::Atom(Atom::Escape(Escape::Everything, 0)))
+        );
     }
 
     #[test]
     fn negate_string_latex() {
         assert_eq!(
             "-5",
-            latexify(&Expression::Negate(Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
-                5
-            ))))))
+            latexify(&Expression::Negate(Box::new(Expression::Atom(
+                Atom::Numeric(Numeric::Integer(5))
+            ))))
         );
     }
 
@@ -872,9 +886,9 @@ mod tests {
     fn factorial_string_latex() {
         assert_eq!(
             "5!",
-            latexify(&Expression::Factorial(Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
-                5
-            ))))))
+            latexify(&Expression::Factorial(Box::new(Expression::Atom(
+                Atom::Numeric(Numeric::Integer(5))
+            ))))
         );
     }
 
@@ -884,9 +898,11 @@ mod tests {
             "\\sin\\left(5\\right)",
             latexify(&Expression::Function {
                 name: "sin".to_string(),
-                args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5))))]
-                    .into_iter()
-                    .collect(),
+                args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
+                    5
+                ))))]
+                .into_iter()
+                .collect(),
             })
         );
     }
@@ -928,7 +944,9 @@ mod tests {
                     Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                     Box::new(Expression::Function {
                         name: "log".to_string(),
-                        args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))],
+                        args: vec![Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(
+                            6
+                        ))))],
                     })
                 ))]
                 .into_iter()
