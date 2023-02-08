@@ -303,13 +303,13 @@ pub fn latexify(expr: &Expression) -> String {
             _ => format!("\\left({}\\right)%", &latexify(&e)),
         },
 
-        Expression::Add(l, r) => format!("{}+{}", &latexify(&l), &latexify(&r)),
-        Expression::Subtract(l, r) => format!("{}-{}", &latexify(&l), &latexify(&r)),
-        Expression::Modulus(l, r) => format!("{}%{}", &latexify(&l), &latexify(&r)),
+        Expression::Add(l, r) => format!("{} + {}", &latexify(&l), &latexify(&r)),
+        Expression::Subtract(l, r) => format!("{} - {}", &latexify(&l), &latexify(&r)),
+        Expression::Modulus(l, r) => format!("{} % {}", &latexify(&l), &latexify(&r)),
 
         Expression::Multiply(l, r) => {
             format!(
-                "{}\\cdot{}",
+                "{} \\cdot {}",
                 match **l {
                     Expression::Add(_, _)
                     | Expression::Subtract(_, _)
@@ -331,7 +331,7 @@ pub fn latexify(expr: &Expression) -> String {
 
         Expression::Power(l, r) => {
             format!(
-                "{}^{}",
+                "{} ^ {}",
                 match **l {
                     Expression::Add(_, _)
                     | Expression::Subtract(_, _)
@@ -368,13 +368,13 @@ pub fn latexify(expr: &Expression) -> String {
             backing: vec,
             size: _,
         } => {
-            format!("\\begin{{vmatrix}}{}\\end{{vmatrix}}", {
+            format!("\\begin{{vmatrix}} {} \\end{{vmatrix}}", {
                 let mut out = String::new();
 
                 for (id, arg) in vec.iter().enumerate() {
                     out = format!("{}{}", out, &latexify(&arg));
                     if id != vec.len() - 1 {
-                        out += "\\\\";
+                        out += " \\\\ ";
                     }
                 }
 
@@ -386,16 +386,16 @@ pub fn latexify(expr: &Expression) -> String {
             backing: vec,
             shape: (rs, cs),
         } => {
-            format!("\\begin{{bmatrix}}{}\\end{{bmatrix}}", {
+            format!("\\begin{{bmatrix}} {} \\end{{bmatrix}}", {
                 let mut out = String::new();
 
                 for r in 0..*rs {
                     if r > 0 {
-                        out += "\\\\";
+                        out += " \\\\ ";
                     }
                     for c in 0..*cs {
                         if c > 0 {
-                            out += "&";
+                            out += " & ";
                         }
                         out = format!("{}{}", out, &latexify(&vec[(*cs * r + c) as usize]));
                     }
@@ -1061,7 +1061,7 @@ mod tests {
     #[test]
     fn add_string_latex() {
         assert_eq!(
-            "5+6",
+            "5 + 6",
             latexify(&Expression::Add(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
@@ -1072,7 +1072,7 @@ mod tests {
     #[test]
     fn subtract_string_latex() {
         assert_eq!(
-            "5-6",
+            "5 - 6",
             latexify(&Expression::Subtract(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
@@ -1083,7 +1083,7 @@ mod tests {
     #[test]
     fn multiply_string_latex() {
         assert_eq!(
-            "5\\cdot6",
+            "5 \\cdot 6",
             latexify(&Expression::Multiply(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
@@ -1105,7 +1105,7 @@ mod tests {
     #[test]
     fn power_string_latex() {
         assert_eq!(
-            "5^6",
+            "5 ^ 6",
             latexify(&Expression::Power(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(6))))
@@ -1116,7 +1116,7 @@ mod tests {
     #[test]
     fn complex_power_string_latex() {
         assert_eq!(
-            "5^{6^7}",
+            "5 ^ {6 ^ 7}",
             latexify(&Expression::Power(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Power(
@@ -1182,7 +1182,7 @@ mod tests {
     #[test]
     fn function_string_latex_advanced() {
         assert_eq!(
-            "\\sin\\left(5\\cdot\\log\\left(6\\right)\\right)",
+            "\\sin\\left(5 \\cdot \\log\\left(6\\right)\\right)",
             latexify(&Expression::Function {
                 name: "sin".to_string(),
                 args: vec![Box::new(Expression::Multiply(
@@ -1203,7 +1203,7 @@ mod tests {
     #[test]
     fn vector_string_latex() {
         assert_eq!(
-            "\\begin{vmatrix}5\\\\6\\end{vmatrix}",
+            "\\begin{vmatrix} 5 \\\\ 6 \\end{vmatrix}",
             latexify(&Expression::Vector {
                 backing: vec![
                     Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
@@ -1217,7 +1217,7 @@ mod tests {
     #[test]
     fn vector_in_expression_string_latex() {
         assert_eq!(
-            "5\\cdot\\begin{vmatrix}6\\\\7\\end{vmatrix}",
+            "5 \\cdot \\begin{vmatrix} 6 \\\\ 7 \\end{vmatrix}",
             latexify(&Expression::Multiply(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Vector {
@@ -1234,7 +1234,7 @@ mod tests {
     #[test]
     fn vector_in_function_string_latex() {
         assert_eq!(
-            "\\sin\\left(\\begin{vmatrix}5\\\\6\\end{vmatrix}\\right)",
+            "\\sin\\left(\\begin{vmatrix} 5 \\\\ 6 \\end{vmatrix}\\right)",
             latexify(&Expression::Function {
                 name: "sin".to_string(),
                 args: vec![Box::new(Expression::Vector {
@@ -1251,7 +1251,7 @@ mod tests {
     #[test]
     fn vector_in_vector_string_latex() {
         assert_eq!(
-            "\\begin{vmatrix}\\begin{vmatrix}5\\\\6\\end{vmatrix}\\\\\\begin{vmatrix}7\\\\8\\end{vmatrix}\\end{vmatrix}",
+            "\\begin{vmatrix} \\begin{vmatrix} 5 \\\\ 6 \\end{vmatrix} \\\\ \\begin{vmatrix} 7 \\\\ 8 \\end{vmatrix} \\end{vmatrix}",
             latexify(&Expression::Vector {
                 backing: vec![
                     Box::new(Expression::Vector {
@@ -1277,7 +1277,7 @@ mod tests {
     #[test]
     fn matrix_string_latex() {
         assert_eq!(
-            "\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}",
+            "\\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix}",
             latexify(&Expression::Matrix {
                 backing: vec![
                     Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
@@ -1293,7 +1293,7 @@ mod tests {
     #[test]
     fn matrix_in_expression_string_latex() {
         assert_eq!(
-            "5\\cdot\\begin{bmatrix}6&7\\\\8&9\\end{bmatrix}",
+            "5 \\cdot \\begin{bmatrix} 6 & 7 \\\\ 8 & 9 \\end{bmatrix}",
             latexify(&Expression::Multiply(
                 Box::new(Expression::Atom(Atom::Numeric(Numeric::Integer(5)))),
                 Box::new(Expression::Matrix {
@@ -1312,7 +1312,7 @@ mod tests {
     #[test]
     fn matrix_in_function_string_latex() {
         assert_eq!(
-            "\\sin\\left(\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}\\right)",
+            "\\sin\\left(\\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix}\\right)",
             latexify(&Expression::Function {
                 name: "sin".to_string(),
                 args: vec![Box::new(Expression::Matrix {
@@ -1331,7 +1331,7 @@ mod tests {
     #[test]
     fn matrix_in_matrix_string_latex() {
         assert_eq!(
-            "\\begin{bmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}&\\begin{bmatrix}9&10\\\\11&12\\end{bmatrix}\\\\\\begin{bmatrix}13&14\\\\15&16\\end{bmatrix}&\\begin{bmatrix}17&18\\\\19&20\\end{bmatrix}\\end{bmatrix}",
+            "\\begin{bmatrix} \\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix} & \\begin{bmatrix} 9 & 10 \\\\ 11 & 12 \\end{bmatrix} \\\\ \\begin{bmatrix} 13 & 14 \\\\ 15 & 16 \\end{bmatrix} & \\begin{bmatrix} 17 & 18 \\\\ 19 & 20 \\end{bmatrix} \\end{bmatrix}",
             latexify(&Expression::Matrix {
                 backing: vec![
                     Box::new(Expression::Matrix {
@@ -1379,7 +1379,7 @@ mod tests {
     #[test]
     fn vector_in_matrix_string_latex() {
         assert_eq!(
-            "\\begin{bmatrix}\\begin{vmatrix}5\\\\6\\end{vmatrix}&\\begin{vmatrix}7\\\\8\\end{vmatrix}\\\\\\begin{vmatrix}9\\\\10\\end{vmatrix}&\\begin{vmatrix}11\\\\12\\end{vmatrix}\\end{bmatrix}",
+            "\\begin{bmatrix} \\begin{vmatrix} 5 \\\\ 6 \\end{vmatrix} & \\begin{vmatrix} 7 \\\\ 8 \\end{vmatrix} \\\\ \\begin{vmatrix} 9 \\\\ 10 \\end{vmatrix} & \\begin{vmatrix} 11 \\\\ 12 \\end{vmatrix} \\end{bmatrix}",
             latexify(&Expression::Matrix {
                 backing: vec![
                     Box::new(Expression::Vector {
@@ -1419,7 +1419,7 @@ mod tests {
     #[test]
     fn matrix_in_vector_string_latex() {
         assert_eq!(
-            "\\begin{vmatrix}\\begin{bmatrix}5&6\\\\7&8\\end{bmatrix}\\\\\\begin{bmatrix}9&10\\\\11&12\\end{bmatrix}\\end{vmatrix}",
+            "\\begin{vmatrix} \\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix} \\\\ \\begin{bmatrix} 9 & 10 \\\\ 11 & 12 \\end{bmatrix} \\end{vmatrix}",
             latexify(&Expression::Vector {
                 backing: vec![
                     Box::new(Expression::Matrix {
@@ -1449,7 +1449,7 @@ mod tests {
     #[test]
     fn complex_string_latex() {
         assert_eq!(
-            "\\frac{5}{6}\\cdot5+4^{2+x}-1!+arc\\left(6\\right)",
+            "\\frac{5}{6} \\cdot 5 + 4 ^ {2 + x} - 1! + arc\\left(6\\right)",
             latexify(&Expression::Add(
                 Box::new(Expression::Subtract(
                     Box::new(Expression::Add(
